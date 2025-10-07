@@ -1,0 +1,379 @@
+#!/usr/bin/env node
+
+import dotenv from "dotenv";
+import express from "express";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import {
+    CallToolRequestSchema,
+    ErrorCode,
+    ListToolsRequestSchema,
+    McpError,
+} from "@modelcontextprotocol/sdk/types.js";
+import { discoverTools } from "./lib/tools.js";
+
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment
+const envPath = path.resolve(__dirname, ".env");
+try {
+    if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath });
+    }
+} catch (err) {
+    console.error("[FATAL] Error loading .env file:", err);
+    process.exit(1);
+}
+
+// Verify required environment variables
+const REQUIRED_ENV = ["REPLIERS_API_KEY"];
+const missingVars = REQUIRED_ENV.filter(env => !process.env[env]);
+
+if (missingVars.length > 0) {
+    console.error(`[FATAL] Missing: ${missingVars.join(", ")}`);
+    process.exit(1);
+}
+
+const SERVER_NAME = "repliers-mcp-server";
+const PORT = process.env.PORT || 3001;
+const SESSION_ID_HEADER = "mcp-session-id";
+
+// Store transports by session ID
+const transports = new Map();
+
+// Transform tools for MCP protocol
+function transformTools(tools) {
+    return tools
+        .map((tool) => {
+            const definitionFunction = tool.definition?.function;
+            if (!definitionFunction) return null;
+            return {
+                name: definitionFunction.name,
+                description: definitionFunction.description,
+                inputSchema: definitionFunction.parameters,
+            };
+        })
+        .filter(Boolean);
+}
+
+// Setup MCP protocol handlers
+function setupServerHandlers(server, tools) {
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+        console.error(`[MCP] Listing ${tools.length} tools`);
+        return { tools: transformTools(tools) };
+    });
+
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const toolName = request.params.name;
+        const args = request.params.arguments || {};
+
+        console.error(`[MCP] Tool call: ${toolName}`);
+
+        const tool = tools.find((t) => t.definition.function.name === toolName);
+
+        if (!tool) {
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
+        }
+
+        const requiredParameters = tool.definition?.function?.parameters?.required || [];
+        for (const param of requiredParameters) {
+            if (!(param in args)) {
+                throw new McpError(
+                    ErrorCode.InvalidParams,
+                    `Missing required parameter: ${param}`
+                );
+            }
+        }
+
+        try {
+            const result = await tool.function(args);
+            const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
+
+            console.error(`[MCP] Tool executed: ${toolName}`);
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `🔗 **API Endpoint Used**\n\`\`\`\n${apiEndpoint}\n\`\`\``,
+                    },
+                    {
+                        type: "text",
+                        text: typeof result.data === "string"
+                            ? result.data
+                            : JSON.stringify(result.data || result, null, 2),
+                    },
+                ],
+            };
+        } catch (error) {
+            const apiEndpoint = `https://api.repliers.io/${toolName}`;
+            console.error(`[MCP] Tool failed: ${error.message}`);
+
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `🔗 **API Endpoint Used**\n\`\`\`\n${apiEndpoint}\n\`\`\`\n\n❌ **Error**\n${error.message}`,
+                    },
+                ],
+            };
+        }
+    });
+}
+
+// Check if request is initialize
+function isInitializeRequest(body) {
+    if (Array.isArray(body)) {
+        return body.some(req => req.method === "initialize");
+    }
+    return body?.method === "initialize";
+}
+
+// Create error response
+function createErrorResponse(message, code = -32000, id = null) {
+    return {
+        jsonrpc: "2.0",
+        error: {
+            code: code,
+            message: message
+        },
+        id: id
+    };
+}
+
+// Start HTTP server
+async function startServer() {
+    console.log("🚀 Starting Streamable HTTP MCP Server\n");
+
+    const app = express();
+
+    // CORS
+    app.use((req, res, next) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
+
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(200);
+        }
+
+        next();
+    });
+
+    // JSON parsing
+    app.use(express.json({ limit: '10mb' }));
+
+    // Logging
+    app.use((req, res, next) => {
+        console.log(`📨 [${new Date().toISOString()}] ${req.method} ${req.url}`);
+        next();
+    });
+
+    // Discover tools
+    console.log("🔍 Discovering tools...");
+    const tools = await discoverTools();
+    console.log(`✓ Discovered ${tools.length} tools\n`);
+
+    // MCP endpoint - POST
+    app.post("/mcp", async (req, res) => {
+        const sessionId = req.headers[SESSION_ID_HEADER];
+        console.log('body',req.body)
+        console.log(`🌊 MCP POST (session: ${sessionId || 'new'})`);
+        console.log(`📦 Method: ${req.body?.method}`);
+
+        try {
+            // Reuse existing transport
+            if (sessionId && transports.has(sessionId)) {
+                console.log(`♻️  Reusing transport for session: ${sessionId}`);
+                const transport = transports.get(sessionId);
+                await transport.handleRequest(req, res, req.body);
+                console.log(`✓ Request handled\n`);
+                return;
+            }
+
+            // Create new transport for initialize request
+            if (!sessionId && isInitializeRequest(req.body)) {
+                console.log(`✨ Creating new transport`);
+
+                const transport = new StreamableHTTPServerTransport({
+                    sessionIdGenerator: () => {
+                        return Date.now().toString(36) + Math.random().toString(36).substring(2);
+                    }
+                });
+
+                // Create server instance
+                const server = new Server(
+                    { name: SERVER_NAME, version: "1.0.0" },
+                    { capabilities: { tools: {} } }
+                );
+
+                server.onerror = (err) => {
+                    console.error(`✗ Server error:`, err);
+                };
+
+                await setupServerHandlers(server, tools);
+
+                console.log(`🔌 Connecting server...`);
+                await server.connect(transport);
+                console.log(`✓ Server connected`);
+
+                console.log(`📨 Handling request...`);
+                await transport.handleRequest(req, res, req.body);
+
+                // Store transport
+                const newSessionId = transport.sessionId;
+                if (newSessionId) {
+                    transports.set(newSessionId, transport);
+                    console.log(`✓ Session created: ${newSessionId}`);
+                }
+
+                console.log(`✓ Initialize completed\n`);
+                return;
+            }
+
+            // Invalid request
+            console.log(`❌ Bad request`);
+            res.status(400).json(
+                createErrorResponse("Bad Request: invalid session ID or method.", -32000, req.body?.id)
+            );
+
+        } catch (error) {
+            console.error(`✗ Error: ${error.message}`);
+            console.error(error.stack);
+
+            if (!res.headersSent) {
+                res.status(500).json(
+                    createErrorResponse(error.message, -32603, req.body?.id)
+                );
+            }
+        }
+    });
+
+    // MCP endpoint - GET (optional SSE support)
+    app.get("/mcp", async (req, res) => {
+        console.log(req.headers)
+        const sessionId = req.headers[SESSION_ID_HEADER];
+
+        console.log(`🌊 MCP GET (session: ${sessionId})`);
+
+        if (!sessionId || !transports.has(sessionId)) {
+            res.status(400).json(
+                createErrorResponse("Bad Request: invalid session ID.")
+            );
+            return;
+        }
+
+        console.log(`♻️  Using transport for session: ${sessionId}`);
+        const transport = transports.get(sessionId);
+
+        try {
+            await transport.handleRequest(req, res);
+            console.log(`✓ SSE stream established\n`);
+        } catch (error) {
+            console.error(`✗ Error: ${error.message}`);
+            if (!res.headersSent) {
+                res.status(500).json(
+                    createErrorResponse(error.message)
+                );
+            }
+        }
+    });
+
+    // Health check
+    app.get("/health", (req, res) => {
+        res.json({
+            status: "healthy",
+            server: SERVER_NAME,
+            version: "1.0.0",
+            transport: "streamable-http",
+            tools: tools.length,
+            activeSessions: transports.size,
+            uptime: process.uptime()
+        });
+    });
+
+    // Debug endpoint - List active sessions
+    app.get("/sessions", (req, res) => {
+        const sessionList = Array.from(transports.keys()).map(sessionId => ({
+            sessionId,
+            created: "unknown" // Transport doesn't expose creation time
+        }));
+
+        res.json({
+            total: sessionList.length,
+            sessions: sessionList
+        });
+    });
+
+    // Root info
+    app.get("/", (req, res) => {
+        res.json({
+            name: SERVER_NAME,
+            version: "1.0.0",
+            transport: "streamable-http",
+            endpoints: {
+                mcp: "/mcp (POST for requests, GET for SSE)",
+                health: "/health",
+                sessions: "/sessions"
+            },
+            tools: tools.length,
+            activeSessions: transports.size
+        });
+    });
+
+    // Start server
+    app.listen(PORT, () => {
+        console.log("═".repeat(60));
+        console.log("🚀 Streamable HTTP MCP Server Running!");
+        console.log("═".repeat(60));
+        console.log(`📍 Server:    ${SERVER_NAME}`);
+        console.log(`📍 Port:      ${PORT}`);
+        console.log(`📍 Tools:     ${tools.length}`);
+        console.log(`📍 Transport: Streamable HTTP`);
+        console.log("─".repeat(60));
+        console.log("📡 Endpoints:");
+        console.log(`   MCP:      http://localhost:${PORT}/mcp`);
+        console.log(`   Health:   http://localhost:${PORT}/health`);
+        console.log(`   Sessions: http://localhost:${PORT}/sessions`);
+        console.log("─".repeat(60));
+        console.log("🧪 Test:");
+        console.log(`   node test-streamable.js`);
+        console.log(`   curl http://localhost:${PORT}/health`);
+        console.log("═".repeat(60));
+        console.log("");
+    });
+
+    // Graceful shutdown
+    process.on("SIGINT", () => {
+        console.log("\n⚠ Shutting down gracefully...");
+        transports.clear();
+        process.exit(0);
+    });
+
+    process.on("SIGTERM", () => {
+        console.log("\n⚠ Shutting down gracefully...");
+        transports.clear();
+        process.exit(0);
+    });
+}
+
+// Main
+async function main() {
+    console.log("main")
+    try {
+        await startServer();
+    } catch (error) {
+        console.error("✗ Fatal:", error);
+        process.exit(1);
+    }
+}
+
+main().catch((error) => {
+    console.error("✗ Startup failed:", error);
+    process.exit(1);
+});
