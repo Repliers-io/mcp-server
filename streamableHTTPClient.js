@@ -13,7 +13,8 @@ let sessionId = null;
 async function sendRequest(method, params = {}, id = 1) {
     const headers = {
         'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream'
+        'Accept': 'application/json, text/event-stream',
+        'repliers-api-key': process.env.REPLIERS_API_KEY || '',
     };
 
     // Add session ID header for subsequent requests
@@ -134,7 +135,7 @@ async function testStreamableHTTP() {
         console.log(`✅ Initialized`);
         console.log(`   Protocol: ${initResult.protocolVersion}`);
         console.log(`   Server: ${initResult.serverInfo.name} v${initResult.serverInfo.version}`);
-        return;
+
         // Step 2: List tools (using session)
         console.log("\n[2/6] 📋 List tools");
         console.log("─".repeat(60));
