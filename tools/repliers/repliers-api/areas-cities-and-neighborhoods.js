@@ -9,9 +9,9 @@
  * @param {string} [args.search] - Limits location metadata to areas, cities, or neighborhoods that match or partially match the supplied value.
  * @returns {Promise<Object>} - The result of the location listing.
  */
-const executeFunction = async ({ area, city, class: locationClass, neighborhood, search }) => {
+const executeFunction = async ({ area, city, class: locationClass, neighborhood, search }, apiKey) => {
   const baseUrl = 'https://api.repliers.io';
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
   try {
     // Construct the URL with query parameters
     const url = new URL(`${baseUrl}/listings/locations`);
@@ -24,7 +24,7 @@ const executeFunction = async ({ area, city, class: locationClass, neighborhood,
     // Set up headers for the request
     const headers = {
       'Accept': 'application/json',
-      'REPLIERS-API-KEY': apiKey
+      'REPLIERS-API-KEY': repliersApiKey
     };
 
     // Perform the fetch request

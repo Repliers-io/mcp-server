@@ -10,7 +10,7 @@ const SERVER_URL = "http://localhost:3001/mcp";
 let sessionId = null;
 
 // Helper to send JSON-RPC request
-async function sendRequest(method, params = {}, id = 1) {
+async function sendRequest(method, params = {}, id = 1, httpMethod = 'POST') {
     const headers = {
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/event-stream',
@@ -28,7 +28,7 @@ async function sendRequest(method, params = {}, id = 1) {
         method: method,
         params: params
     };
-    console.log(JSON.stringify(payload, null,2))
+    console.log(JSON.stringify(payload, null, 2))
 
     console.log(`📤 Sending ${method}...`);
     if (sessionId) {
@@ -36,9 +36,9 @@ async function sendRequest(method, params = {}, id = 1) {
     }
 
     const startTime = Date.now();
-    console.log(JSON.stringify(headers.null,2))
+    console.log(JSON.stringify(headers.null, 2))
     const response = await fetch(SERVER_URL, {
-        method: 'POST',
+        method: httpMethod,
         headers: headers,
         body: JSON.stringify(payload)
     });
@@ -120,7 +120,7 @@ async function testStreamableHTTP() {
 
     try {
         // Step 1: Initialize (creates session)
-        console.log("\n[1/6] 🔌 Initialize (create session)");
+        console.log("\n[1/7] 🔌 Initialize (create session)");
         console.log("─".repeat(60));
 
         const initResult = await sendRequest("initialize", {
@@ -137,7 +137,7 @@ async function testStreamableHTTP() {
         console.log(`   Server: ${initResult.serverInfo.name} v${initResult.serverInfo.version}`);
 
         // Step 2: List tools (using session)
-        console.log("\n[2/6] 📋 List tools");
+        console.log("\n[2/7] 📋 List tools");
         console.log("─".repeat(60));
 
         const toolsResult = await sendRequest("tools/list", {}, 2);
@@ -153,7 +153,7 @@ async function testStreamableHTTP() {
         }
 
         // Step 3: Call simple tool
-        console.log("\n[3/6] 🔧 Call tool: list_property_types_and_styles");
+        console.log("\n[3/7] 🔧 Call tool: list_property_types_and_styles");
         console.log("─".repeat(60));
 
         const tool1Start = Date.now();
@@ -167,7 +167,7 @@ async function testStreamableHTTP() {
         console.log(`   Response has ${tool1Result.content?.length || 0} content items`);
 
         // Step 4: Call another tool
-        console.log("\n[4/6] 🔧 Call tool: list_locations");
+        console.log("\n[4/7] 🔧 Call tool: list_locations");
         console.log("─".repeat(60));
 
         const tool2Start = Date.now();
@@ -183,7 +183,7 @@ async function testStreamableHTTP() {
         console.log(`   Response has ${tool2Result.content?.length || 0} content items`);
 
         // Step 5: Call search tool
-        console.log("\n[5/6] 🔧 Call tool: repliers_listings_search");
+        console.log("\n[5/7] 🔧 Call tool: repliers_listings_search");
         console.log("─".repeat(60));
 
         const searchStart = Date.now();
@@ -206,14 +206,21 @@ async function testStreamableHTTP() {
         console.log(`   Response has ${searchResult.content?.length || 0} content items`);
 
         // Step 6: Multiple rapid calls to test session
-        console.log("\n[6/6] 🔧 Test session persistence (5 rapid calls)");
+        console.log("\n[6/7] 🔧 Test session persistence (5 rapid calls)");
         console.log("─".repeat(60));
+
+
+        console.log("✅ Session closed");
 
         for (let i = 1; i <= 5; i++) {
             const start = Date.now();
             await sendRequest("tools/list", {}, 5 + i);
             console.log(`  ${i}. tools/list: ${Date.now() - start}ms`);
         }
+        // Step 7: Delete the session first
+        console.log("\n[7/7] Delete session");
+        await sendRequest("", {}, 6, "DELETE");
+
         console.log("✅ All calls used the same session");
 
         // Summary

@@ -3,13 +3,13 @@
  * Fixed version that properly handles map parameter and body/query separation
  */
 
-const executeFunction = async (args) => {
+const executeFunction = async (args, apiKey) => {
   const baseUrl = "https://api.repliers.io";
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
   const defaultResultsPerPage = parseInt(process.env.RESULTS_PER_PAGE) || 20;
   let finalUrl;
 
-  if (!apiKey) {
+  if (!repliersApiKey) {
     throw new Error("REPLIERS_API_KEY environment variable is not set");
   }
 
@@ -64,7 +64,7 @@ const executeFunction = async (args) => {
     // Set headers
     const headers = {
       Accept: "application/json",
-      "REPLIERS-API-KEY": apiKey,
+      "REPLIERS-API-KEY": repliersApiKey,
     };
 
     // Determine if we need to send a body

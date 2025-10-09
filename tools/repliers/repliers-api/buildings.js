@@ -3,13 +3,13 @@
  * MCP tool for searching building data using the Repliers API
  */
 
-const executeFunction = async (args) => {
+const executeFunction = async (args, apiKey) => {
   const baseUrl = "https://api.repliers.io";
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
   const defaultResultsPerPage = parseInt(process.env.RESULTS_PER_PAGE) || 100;
   let finalUrl;
 
-  if (!apiKey) {
+  if (!repliersApiKey) {
     throw new Error("REPLIERS_API_KEY environment variable is not set");
   }
 

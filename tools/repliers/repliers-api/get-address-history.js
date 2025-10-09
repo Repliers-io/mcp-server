@@ -11,9 +11,9 @@
  * @param {string} args.zip - The zip code of the property (required).
  * @returns {Promise<Object>} - The result of the address history request.
  */
-const executeFunction = async (args) => {  // Fixed parameter destructuring
+const executeFunction = async (args, apiKey) => {  // Fixed parameter destructuring
   const baseUrl = "https://api.repliers.io";
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
   let finalUrl;
 
   try {
@@ -29,7 +29,7 @@ const executeFunction = async (args) => {  // Fixed parameter destructuring
     finalUrl = url.toString();
     const headers = { 
       Accept: "application/json",
-      "REPLIERS-API-KEY": apiKey 
+      "REPLIERS-API-KEY": repliersApiKey
     };
 
     // Fixed fetch call - removed invalid 'url' property

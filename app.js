@@ -1,393 +1,79 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv";
 import express from "express";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import {
-    CallToolRequestSchema,
-    ErrorCode,
-    ListToolsRequestSchema,
-    McpError,
-} from "@modelcontextprotocol/sdk/types.js";
+import { PORT } from "./config/environment.js";
+import { SERVER_NAME } from "./config/constants.js";
+import { corsMiddleware } from "./middleware/cors.js";
+import { loggingMiddleware } from "./middleware/logging.js";
+import { requestIdMiddleware } from "./middleware/requestId.js";
+import { sessionManager } from "./services/sessionManager.js";
 import { discoverTools } from "./lib/tools.js";
-
-import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Load environment
-const envPath = path.resolve(__dirname, ".env");
-try {
-    if (fs.existsSync(envPath)) {
-        dotenv.config({ path: envPath });
-    }
-} catch (err) {
-    console.error("[FATAL] Error loading .env file:", err);
-    process.exit(1);
-}
-
-// Verify required environment variables (now optional, API key comes from headers)
-const REQUIRED_ENV = [];
-const missingVars = REQUIRED_ENV.filter(env => !process.env[env]);
-
-if (missingVars.length > 0) {
-    console.error(`[FATAL] Missing: ${missingVars.join(", ")}`);
-    process.exit(1);
-}
-
-const SERVER_NAME = "repliers-mcp-server";
-const PORT = process.env.PORT || 3001;
-const SESSION_ID_HEADER = "mcp-session-id";
-const API_KEY_HEADER = "repliers-api-key";
-
-// Store server instances by session ID (each has its own API key context)
-const sessions = new Map();
-
-// Transform tools for MCP protocol
-function transformTools(tools) {
-    return tools
-        .map((tool) => {
-            const definitionFunction = tool.definition?.function;
-            if (!definitionFunction) return null;
-            return {
-                name: definitionFunction.name,
-                description: definitionFunction.description,
-                inputSchema: definitionFunction.parameters,
-            };
-        })
-        .filter(Boolean);
-}
-
-// Setup MCP protocol handlers with API key in closure
-function setupServerHandlers(server, tools, apiKey) {
-    server.setRequestHandler(ListToolsRequestSchema, async () => {
-        console.error(`[MCP] Listing ${tools.length} tools`);
-        return { tools: transformTools(tools) };
-    });
-
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-        const toolName = request.params.name;
-        const args = request.params.arguments || {};
-
-        console.error(`[MCP] Tool call: ${toolName}`);
-
-        const tool = tools.find((t) => t.definition.function.name === toolName);
-
-        if (!tool) {
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
-        }
-
-        const requiredParameters = tool.definition?.function?.parameters?.required || [];
-        for (const param of requiredParameters) {
-            if (!(param in args)) {
-                throw new McpError(
-                    ErrorCode.InvalidParams,
-                    `Missing required parameter: ${param}`
-                );
-            }
-        }
-
-        try {
-            // Use API key from closure
-            const result = await tool.function(args, apiKey);
-            const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
-
-            console.error(`[MCP] Tool executed: ${toolName}`);
-
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `🔗 **API Endpoint Used**\n\`\`\`\n${apiEndpoint}\n\`\`\``,
-                    },
-                    {
-                        type: "text",
-                        text: typeof result.data === "string"
-                            ? result.data
-                            : JSON.stringify(result.data || result, null, 2),
-                    },
-                ],
-            };
-        } catch (error) {
-            const apiEndpoint = `https://api.repliers.io/${toolName}`;
-            console.error(`[MCP] Tool failed: ${error.message}`);
-
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `🔗 **API Endpoint Used**\n\`\`\`\n${apiEndpoint}\n\`\`\`\n\n❌ **Error**\n${error.message}`,
-                    },
-                ],
-            };
-        }
-    });
-}
-
-// Check if request is initialize
-function isInitializeRequest(body) {
-    if (Array.isArray(body)) {
-        return body.some(req => req.method === "initialize");
-    }
-    return body?.method === "initialize";
-}
-
-// Create error response
-function createErrorResponse(message, code = -32000, id = null) {
-    return {
-        jsonrpc: "2.0",
-        error: {
-            code: code,
-            message: message
-        },
-        id: id
-    };
-}
-
-// Extract API key from request headers (required)
-function extractApiKey(req) {
-    const apiKey = req.headers[API_KEY_HEADER];
-
-    if (!apiKey) {
-        throw new Error(`Missing required header: ${API_KEY_HEADER}`);
-    }
-
-    return apiKey;
-}
-
-// Start HTTP server
-
+import routes from "./routes/index.js";
+import { createErrorResponse } from "./utils/responses.js";
 console.log("🚀 Starting Streamable HTTP MCP Server\n");
 
 const app = express();
 
-// CORS
-app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE");
-    res.setHeader("Access-Control-Allow-Headers", `Content-Type, ${SESSION_ID_HEADER}, ${API_KEY_HEADER}`);
-
-    if (req.method === "OPTIONS") {
-        return res.sendStatus(200);
-    }
-
-    next();
-});
-
-// JSON parsing
+// Middleware
+app.use(corsMiddleware);
 app.use(express.json({ limit: "10mb" }));
+app.use(requestIdMiddleware);
+app.use(loggingMiddleware);
 
-// Logging
-app.use((req, res, next) => {
-    console.log(`📨 [${new Date().toISOString()}] ${req.method} ${req.url}`);
-    if (req.headers[API_KEY_HEADER]) {
-        console.log(`🔑 API Key: ${req.headers[API_KEY_HEADER].substring(0, 8)}...`);
-    }
-    next();
-});
 
-// Discover tools
-console.log("🔍 Discovering tools...");
 const tools = await discoverTools();
-console.log(`✓ Discovered ${tools.length} tools\n`);
 
-// MCP endpoint - POST
-app.post("/mcp", async (req, res) => {
-    const sessionId = req.headers[SESSION_ID_HEADER];
+// Make tools available to routes
+app.locals.tools = tools;
 
-    console.log("body", req.body);
-    console.log(`🌊 MCP POST (session: ${sessionId || "new"})`);
-    console.log(`📦 Method: ${req.body?.method}`);
+// Routes
+app.use("/", routes);
 
-    try {
-        // Extract and validate API key
-        const apiKey = extractApiKey(req);
-
-        // Reuse existing session
-        if (sessionId && sessions.has(sessionId)) {
-            console.log(`♻️  Reusing session: ${sessionId}`);
-
-            const session = sessions.get(sessionId);
-            await session.transport.handleRequest(req, res, req.body);
-            console.log(`✓ Request handled\n`);
-            return;
-        }
-
-        // Create new session for initialize request
-        if (!sessionId && isInitializeRequest(req.body)) {
-            console.log(`✨ Creating new session`);
-
-            const transport = new StreamableHTTPServerTransport({
-                sessionIdGenerator: () => {
-                    return Date.now().toString(36) + Math.random().toString(36).substring(2);
-                }
-            });
-            console.log("✨ Created transport:", transport.sessionId);
-
-            // Create server instance with API key in closure
-            const server = new Server(
-                { name: SERVER_NAME, version: "1.0.0" },
-                { capabilities: { tools: {} } }
-            );
-
-            server.onerror = (err) => {
-                console.error(`✗ Server error:`, err);
-            };
-
-            // Setup handlers with API key captured in closure
-            await setupServerHandlers(server, tools, apiKey);
-
-            console.log(`🔌 Connecting server...`);
-            await server.connect(transport);
-            console.log(`✓ Server connected`);
-
-            console.log(`📨 Handling request...`);
-            await transport.handleRequest(req, res, req.body);
-
-            // Store session
-            const newSessionId = transport.sessionId;
-            if (newSessionId) {
-                sessions.set(newSessionId, { transport, server, apiKey });
-                console.log(`✓ Session created: ${newSessionId}`);
-            }
-
-            console.log(`✓ Initialize completed\n`);
-            return;
-        }
-
-        // Invalid request
-        console.log(`❌ Bad request`);
-        res.status(400).json(
-            createErrorResponse("Bad Request: invalid session ID or method.", -32000, req.body?.id)
-        );
-
-    } catch (error) {
-        console.error(`✗ Error: ${error.message}`);
-        console.error(error.stack);
-
-        if (!res.headersSent) {
-            res.status(500).json(
-                createErrorResponse(error.message, -32603, req.body?.id)
-            );
-        }
-    }
-});
-
-// MCP endpoint - GET (optional SSE support)
-app.get("/mcp", async (req, res) => {
-    console.log(req.headers);
-    const sessionId = req.headers[SESSION_ID_HEADER];
-
-    console.log(`🌊 MCP GET (session: ${sessionId})`);
-
-    if (!sessionId || !sessions.has(sessionId)) {
-        res.status(400).json(
-            createErrorResponse("Bad Request: invalid session ID.")
-        );
-        return;
-    }
-
-    console.log(`♻️  Using session: ${sessionId}`);
-    const session = sessions.get(sessionId);
-
-    try {
-        await session.transport.handleRequest(req, res);
-        console.log(`✓ SSE stream established\n`);
-    } catch (error) {
-        console.error(`✗ Error: ${error.message}`);
-        if (!res.headersSent) {
-            res.status(500).json(
-                createErrorResponse(error.message)
-            );
-        }
-    }
-});
-// MCP endpoint - DELETE (session termination)
-app.delete("/mcp", async (req, res) => {
-    const sessionId = req.headers[SESSION_ID_HEADER];
-
-    console.log(`🗑️  MCP DELETE (session: ${sessionId})`);
-
-    if (!sessionId) {
-        res.status(400).json(
-            createErrorResponse("Bad Request: missing session ID.")
-        );
-        return;
-    }
-
-    if (!sessions.has(sessionId)) {
-        console.log(`⚠️  Session not found: ${sessionId}`);
-        // Return success even if session doesn"t exist (idempotent)
-        res.status(200).json({
-            jsonrpc: "2.0",
-            result: { success: true },
-            id: null
-        });
-        return;
-    }
-
-    try {
-        const session = sessions.get(sessionId);
-
-        // Close the server connection if it has a close method
-        if (session.server && typeof session.server.close === "function") {
-            await session.server.close();
-        }
-
-        // Remove session from map
-        sessions.delete(sessionId);
-
-        console.log(`✓ Session terminated: ${sessionId}`);
-        console.log(`📊 Active sessions: ${sessions.size}\n`);
-
-        res.status(200).json({
-            jsonrpc: "2.0",
-            result: { success: true },
-            id: null
-        });
-
-    } catch (error) {
-        console.error(`✗ Error terminating session: ${error.message}`);
-        res.status(500).json(
-            createErrorResponse(`Failed to terminate session: ${error.message}`)
-        );
-    }
-});
-
-// Health check
-app.get("/health", (req, res) => {
-    res.json({
-        status: "healthy",
-        server: SERVER_NAME,
-        version: "1.0.0",
-        transport: "streamable-http",
-        tools: tools.length,
-        activeSessions: sessions.size,
-        uptime: process.uptime()
-    });
-});
-
-// Root info
-app.get("/", (req, res) => {
-    res.json({
-        name: SERVER_NAME,
-        version: "1.0.0",
-        transport: "streamable-http",
-        endpoints: {
-            mcp: "/mcp (POST for requests, GET for SSE)",
-            health: "/health"
+app.use((req, res) => {
+    res.status(404).json({
+        jsonrpc: "2.0",
+        error: {
+            code: -32601,
+            message: `Cannot ${req.method} ${req.url}`
         },
-        tools: tools.length,
-        activeSessions: sessions.size,
-        headers: {
-            sessionId: SESSION_ID_HEADER,
-            apiKey: API_KEY_HEADER
-        }
+        id: null
     });
+});
+app.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    // Store error in res.locals for logging middleware
+    res.locals.error = {
+        message: message,
+        stack: err.stack,
+        code: err.code
+    };
+
+    // Log error with logger
+    console.log({
+        requestId: req.requestId,
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        method: req.method,
+        url: req.url,
+        pathname: req.originalUrl.split("?")[0],
+        statusCode: statusCode,
+        error: {
+            message: message,
+            stack: err.stack,
+            code: err.code
+        },
+        body: req.body,
+        sessionId: req.headers["mcp-session-id"] || "none"
+    });
+
+    // Send error response
+    if (!res.headersSent) {
+        res.status(statusCode).json(
+            createErrorResponse(message, err.code || -32603, req.body?.id)
+        );
+    }
 });
 
 // Start server
@@ -403,10 +89,7 @@ app.listen(PORT, () => {
     console.log("📡 Endpoints:");
     console.log(`   MCP:      http://localhost:${PORT}/mcp`);
     console.log(`   Health:   http://localhost:${PORT}/health`);
-    console.log("─".repeat(60));
-    console.log("🔑 Headers:");
-    console.log(`   Session:  ${SESSION_ID_HEADER}`);
-    console.log(`   API Key:  ${API_KEY_HEADER}`);
+    console.log(`   Info:     http://localhost:${PORT}/health/info`);
     console.log("─".repeat(60));
     console.log("🧪 Test:");
     console.log(`   node streamableHTTPClient.js`);
@@ -415,22 +98,87 @@ app.listen(PORT, () => {
     console.log("");
 });
 
+// Global error handlers
+process.on("uncaughtException", (error) => {
+    console.error("❌ Uncaught Exception:", error);
+    console.log({
+        timestamp: new Date().toISOString(),
+        level: "FATAL",
+        error: {
+            type: "uncaughtException",
+            message: error.message,
+            stack: error.stack
+        }
+    });
 
+    // Give logger time to write, then exit
+    setTimeout(() => {
+        process.exit(1);
+    }, 1000);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+    console.log({
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        error: {
+            type: "unhandledRejection",
+            message: reason?.message || String(reason),
+            stack: reason?.stack
+        }
+    });
+});
 // Graceful shutdown
-process.on("SIGINT", () => {
-    console.log("\n⚠ Shutting down gracefully...");
-    sessions.clear();
-    process.exit(0);
-});
+// Graceful shutdown
+const shutdown = async (signal) => {
+    console.log(`\n⚠️  ${signal} received. Shutting down gracefully...`);
 
-process.on("SIGTERM", () => {
-    console.log("\n⚠ Shutting down gracefully...");
-    sessions.clear();
-    process.exit(0);
-});
+    // Stop accepting new connections
+    server.close(async () => {
+        console.log("✓ HTTP server closed");
 
+        try {
+            // Close all active sessions
+            console.log(`✓ Closing ${sessionManager.size} active sessions...`);
+
+            for (const [sessionId, session] of sessionManager.sessions) {
+                try {
+                    if (session.server && typeof session.server.close === "function") {
+                        await session.server.close();
+                    }
+                } catch (error) {
+                    console.error(`✗ Error closing session ${sessionId}:`, error.message);
+                }
+            }
+
+            sessionManager.clear();
+            console.log("✓ All sessions closed");
+
+            // Log shutdown
+            console.log({
+                timestamp: new Date().toISOString(),
+                level: "INFO",
+                message: "Server shutdown complete",
+                signal: signal
+            });
+
+            console.log("✓ Shutdown complete");
+            process.exit(0);
+
+        } catch (error) {
+            console.error("✗ Error during shutdown:", error);
+            process.exit(1);
+        }
+    });
+
+    // Force shutdown after 30 seconds
+    setTimeout(() => {
+        console.error("❌ Forced shutdown after timeout");
+        process.exit(1);
+    }, 30000);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 export default app;
-
-
-

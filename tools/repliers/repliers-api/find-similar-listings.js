@@ -10,9 +10,9 @@
  * @param {string} [args.sortBy] - Sort similar listings by a specific field (e.g., "updatedOnDesc", "createdOnAsc").
  * @returns {Promise<Object>} - The result of finding similar listings.
  */
-const executeFunction = async (args) => {
+const executeFunction = async (args, apiKey) => {
   const baseUrl = 'https://api.repliers.io';
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
 
   try {
     // Construct the URL for finding similar listings
@@ -38,7 +38,7 @@ const executeFunction = async (args) => {
     // Set up headers for the request
     const headers = {
       'Accept': 'application/json',
-      'REPLIERS-API-KEY': apiKey
+      'REPLIERS-API-KEY': repliersApiKey
     };
 
     // Perform the fetch request

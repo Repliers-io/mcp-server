@@ -7,9 +7,9 @@
  * @param {string} args.maxUpdatedOn - The maximum date for updated listings.
  * @returns {Promise<Object>} - The response from the Repliers API containing deleted listings.
  */
-const executeFunction = async ({ updatedOn, minUpdatedOn, maxUpdatedOn }) => {
+const executeFunction = async ({ updatedOn, minUpdatedOn, maxUpdatedOn }, apiKey) => {
   const baseUrl = 'https://api.repliers.io';
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
 
   try {
     // Construct the URL with query parameters
@@ -21,7 +21,7 @@ const executeFunction = async ({ updatedOn, minUpdatedOn, maxUpdatedOn }) => {
     // Set up headers for the request
     const headers = {
       'Accept': 'application/json',
-      'REPLIERS-API-KEY': apiKey
+      'REPLIERS-API-KEY': repliersApiKey
     };
 
     // Perform the fetch request

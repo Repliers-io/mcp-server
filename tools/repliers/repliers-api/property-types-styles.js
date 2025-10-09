@@ -3,9 +3,9 @@
  *
  * @returns {Promise<Object>} - The result of the property types and styles request.
  */
-const executeFunction = async () => {
+const executeFunction = async (args, apiKey) => {
   const baseUrl = 'https://api.repliers.io';
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
   try {
     // Construct the URL for the request
     const url = `${baseUrl}/listings/property-types`;
@@ -13,7 +13,7 @@ const executeFunction = async () => {
     // Set up headers for the request
     const headers = {
       'Accept': 'application/json',
-      'REPLIERS-API-KEY': apiKey
+      'REPLIERS-API-KEY': repliersApiKey
     };
 
     // Perform the fetch request

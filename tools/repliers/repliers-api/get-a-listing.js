@@ -6,9 +6,9 @@
  * @param {number} [args.boardId] - Filter by boardId if required.
  * @returns {Promise<Object>} - The result of getting the listing.
  */
-const executeFunction = async (args) => {
+const executeFunction = async (args, apiKey) => {
   const baseUrl = "https://api.repliers.io";
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const repliersApiKey = apiKey || process.env.REPLIERS_API_KEY;
   let finalUrl; // Declare here to use in error handling
 
   try {
@@ -22,7 +22,7 @@ const executeFunction = async (args) => {
     // Set up headers for the request
     const headers = {
       Accept: "application/json",
-      "REPLIERS-API-KEY": apiKey,
+      "REPLIERS-API-KEY": repliersApiKey,
     };
 
     finalUrl = url.toString(); // Capture the final URL

@@ -282,3 +282,12 @@ Workspace: repliers-api
         - pageNum: Page number for pagination (default: 1)
         - resultsPerPage: Number of results per page (default: 100, max: 100)
 ```
+
+# MCP Inspector Command
+
+Launches the MCP (Master Control Program) Inspector tool for the given URL endpoint.
+
+## Usage
+mcp-inspector http://localhost:3001/mcp
+
+
