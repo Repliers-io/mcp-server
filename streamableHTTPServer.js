@@ -371,19 +371,6 @@ async function startServer() {
         });
     });
 
-    // Debug endpoint - List active sessions
-    app.get("/sessions", (req, res) => {
-        const sessionList = Array.from(sessions.keys()).map(sessionId => ({
-            sessionId,
-            hasApiKey: !!sessions.get(sessionId).apiKey,
-            created: "unknown"
-        }));
-
-        res.json({
-            total: sessionList.length,
-            sessions: sessionList
-        });
-    });
 
     // Root info
     app.get("/", (req, res) => {
@@ -418,7 +405,6 @@ async function startServer() {
         console.log("📡 Endpoints:");
         console.log(`   MCP:      http://localhost:${PORT}/mcp`);
         console.log(`   Health:   http://localhost:${PORT}/health`);
-        console.log(`   Sessions: http://localhost:${PORT}/sessions`);
         console.log("─".repeat(60));
         console.log("🔑 Headers:");
         console.log(`   Session:  ${SESSION_ID_HEADER}`);
