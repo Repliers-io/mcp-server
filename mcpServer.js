@@ -51,7 +51,14 @@ try {
 // --- SECURITY IMPROVEMENTS END ---
 
 // Verify required environment variables
-const REQUIRED_ENV = ["REPLIERS_API_KEY"];
+const REQUIRED_ENV = [];
+const OAUTH_ENV = [
+  "OAUTH_BASE_URL",
+  "OAUTH_AUTHORIZATION_ENDPOINT", 
+  "OAUTH_TOKEN_ENDPOINT",
+  "OAUTH_USERINFO_ENDPOINT"  // Using UserInfo instead of introspection
+];
+
 let missingVars = [];
 REQUIRED_ENV.forEach((env) => {
   if (!process.env[env]) {
@@ -60,12 +67,26 @@ REQUIRED_ENV.forEach((env) => {
   }
 });
 
+// Check OAuth variables (warn but don't exit)
+let missingOAuthVars = [];
+OAUTH_ENV.forEach((env) => {
+  if (!process.env[env]) {
+    console.error(`[WARN] Missing OAuth environment variable: ${env}`);
+    missingOAuthVars.push(env);
+  }
+});
+
 if (missingVars.length > 0) {
   console.error("[FATAL] Server cannot start without required variables");
   process.exit(1);
 }
 
-const SERVER_NAME = "repliers-mcp-server";
+if (missingOAuthVars.length > 0) {
+  console.error("[WARN] OAuth authentication may not work correctly without these variables:");
+  console.error("[WARN]", missingOAuthVars.join(", "));
+}
+
+const SERVER_NAME = "Repliers MCP Server";
 
 // Process event handlers for debugging
 process.on("uncaughtException", (error) => {
@@ -105,7 +126,7 @@ async function transformTools(tools) {
     .filter(Boolean);
 }
 
-async function setupServerHandlers(server, tools) {
+async function setupServerHandlers(server, tools, repliersApiKey) {
   console.error("[DEBUG] Setting up server handlers");
 
   // List tools handler
@@ -140,7 +161,7 @@ async function setupServerHandlers(server, tools) {
     }
 
     try {
-      const result = await tool.function(args);
+      const result = await tool.function({ ...args, _repliersApiKey: repliersApiKey });
       const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
 
       return {
@@ -193,14 +214,190 @@ async function run() {
     if (isSSE) {
       console.error("[DEBUG] Starting SSE mode");
 
+      const selfHosted = !!process.env.REPLIERS_API_KEY;
+      console.error(`[DEBUG] Mode: ${selfHosted ? 'self-hosted (env key)' : 'hosted (PropelAuth)'}`);
+
       const app = express();
-      app.use(express.json());
+      // DO NOT use app.use(express.json()) globally - it will consume the body stream
+      // that SSEServerTransport needs to read
 
       const transports = {};
       const servers = {};
 
-      app.get("/sse", async (_req, res) => {
-        console.error("[DEBUG] SSE connection request received");
+      // OAuth token verification middleware using UserInfo endpoint
+      async function verifyOAuthToken(req, res, next) {
+        const authHeader = req.headers.authorization;
+        
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          console.error("[ERROR] Missing or invalid authorization header");
+          return res.status(401).json({
+            error: "unauthorized",
+            message: "Missing or invalid authorization header. Expected: Bearer <token>"
+          });
+        }
+
+        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        
+        try {
+          // Validate token by calling UserInfo endpoint
+          // If token is valid, we get user data back. If invalid, we get 401.
+          const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT || 
+                                  `${process.env.OAUTH_BASE_URL}/oauth/userinfo`;
+          
+          console.error(`[DEBUG] Validating token via UserInfo: ${userInfoEndpoint}`);
+          
+          const response = await fetch(userInfoEndpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (!response.ok) {
+            console.error("[ERROR] Token validation failed:", response.status);
+            return res.status(401).json({
+              error: "unauthorized",
+              message: "Token is invalid or expired"
+            });
+          }
+
+          const userInfo = await response.json();
+          
+          // Store user info in request for later use
+          req.user = {
+            id: userInfo.sub || userInfo.id || userInfo.user_id,
+            email: userInfo.email,
+            name: userInfo.name,
+            picture: userInfo.picture,
+            emailVerified: userInfo.email_verified,
+            profile: userInfo
+          };
+
+          // Fetch Repliers API key from PropelAuth org metadata
+          if (req.user.id && process.env.PROPELAUTH_API_KEY) {
+            try {
+              // UserInfo endpoint doesn't include org membership — fetch it from the backend user API
+              const userResponse = await fetch(
+                `${process.env.OAUTH_BASE_URL}/api/backend/v1/user/${req.user.id}`,
+                { headers: { 'Authorization': `Bearer ${process.env.PROPELAUTH_API_KEY}` } }
+              );
+              if (userResponse.ok) {
+                const userData = await userResponse.json();
+                req.user.repliersApiKey = userData.metadata?.repliers_api_key;
+                console.error(`[DEBUG] Repliers API key ${req.user.repliersApiKey ? 'found' : 'not found'} in user metadata`);
+              } else {
+                console.error(`[WARN] Could not fetch user from PropelAuth backend: ${userResponse.status}`);
+              }
+            } catch (orgError) {
+              console.error('[WARN] Error fetching org metadata:', orgError.message);
+            }
+          } else {
+            if (!process.env.PROPELAUTH_API_KEY) console.error('[DEBUG] PROPELAUTH_API_KEY not set, skipping org metadata fetch');
+          }
+
+          console.error(`[DEBUG] User authenticated: ${req.user.id} (${req.user.email || 'no email'})`);
+          next();
+          
+        } catch (error) {
+          console.error("[ERROR] Token verification error:", error);
+          return res.status(500).json({
+            error: "server_error",
+            message: "Failed to verify token"
+          });
+        }
+      }
+
+      // OpenID Connect Discovery endpoint (more standard than OAuth-specific)
+      app.get("/.well-known/openid-configuration", (_req, res) => {
+        console.error("[DEBUG] OpenID Connect discovery endpoint called");
+        
+        const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
+        const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
+        const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
+        const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT || `${baseUrl}/oauth/userinfo`;
+        
+        res.status(200).json({
+          issuer: baseUrl,
+          authorization_endpoint: authorizationEndpoint,
+          token_endpoint: tokenEndpoint,
+          userinfo_endpoint: userInfoEndpoint,
+          response_types_supported: ["code"],
+          grant_types_supported: ["authorization_code", "refresh_token"],
+          subject_types_supported: ["public"],
+          id_token_signing_alg_values_supported: ["RS256"],
+          code_challenge_methods_supported: ["S256"],
+          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
+        });
+      });
+
+      // OAuth discovery endpoint - provide OAuth server metadata
+      app.get("/.well-known/oauth-authorization-server", (req, res) => {
+        console.error("[DEBUG] OAuth discovery endpoint called");
+        
+        const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
+        const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
+        const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
+        
+        res.status(200).json({
+          issuer: baseUrl,
+          authorization_endpoint: authorizationEndpoint,
+          token_endpoint: tokenEndpoint,
+          response_types_supported: ["code"],
+          grant_types_supported: ["authorization_code", "refresh_token"],
+          code_challenge_methods_supported: ["S256"],
+          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
+          // Include a registration endpoint that will return an error explaining the situation
+          registration_endpoint: `https://${req.get('host')}/oauth/register`
+        });
+      });
+
+      // Dynamic client registration endpoint - returns pre-configured client
+      // This is a workaround for MCP clients that require dynamic registration
+      app.post("/oauth/register", (_req, res) => {
+        console.error("[DEBUG] Dynamic client registration attempted");
+        
+        // Check if we have a pre-configured client ID
+        const preConfiguredClientId = process.env.OAUTH_CLIENT_ID;
+        
+        if (!preConfiguredClientId) {
+          return res.status(501).json({
+            error: "registration_not_supported",
+            error_description: "Dynamic client registration is not supported. Please set OAUTH_CLIENT_ID in your .env file with your PropelAuth client ID."
+          });
+        }
+        
+        // Return the pre-configured client as if we just registered it
+        console.error("[DEBUG] Returning pre-configured client ID:", preConfiguredClientId);
+        res.status(201).json({
+          client_id: preConfiguredClientId,
+          client_secret: process.env.OAUTH_CLIENT_SECRET || undefined,
+          redirect_uris: [
+            "http://localhost:3000/callback",
+            "http://127.0.0.1:3000/callback",
+            "https://app.jenova.ai/oauth/callback"
+          ],
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: process.env.OAUTH_CLIENT_SECRET ? "client_secret_post" : "none"
+        });
+      });
+
+      // Health check endpoint (public - no auth required)
+      app.get("/health", (_req, res) => {
+        console.error("[DEBUG] Health check endpoint called");
+        res.status(200).json({
+          status: "ok",
+          name: SERVER_NAME,
+          version: "0.1.0",
+          mode: "sse",
+          oauth_enabled: true
+        });
+      });
+
+      // SSE endpoint - PROTECTED with OAuth
+      app.get(["/", "/sse"], ...(selfHosted ? [] : [verifyOAuthToken]), async (req, res) => {
+        const repliersApiKey = selfHosted ? process.env.REPLIERS_API_KEY : req.user.repliersApiKey;
+        console.error(`[DEBUG] SSE connection request received${selfHosted ? '' : ` for user: ${req.user.id}`}`);
 
         const server = new Server(
           {
@@ -217,14 +414,16 @@ async function run() {
         server.onerror = (error) => console.error("[SERVER ERROR]", error);
 
         const tools = await discoverTools();
-        await setupServerHandlers(server, tools);
+        await setupServerHandlers(server, tools, repliersApiKey);
 
         const transport = new SSEServerTransport("/messages", res);
         transports[transport.sessionId] = transport;
         servers[transport.sessionId] = server;
 
+        console.error(`[DEBUG] SSE session created: ${transport.sessionId}`);
+
         res.on("close", async () => {
-          console.error("[DEBUG] SSE connection closed");
+          console.error(`[DEBUG] SSE connection closed for session: ${transport.sessionId}`);
           delete transports[transport.sessionId];
           await server.close();
           delete servers[transport.sessionId];
@@ -234,15 +433,43 @@ async function run() {
         console.error("[DEBUG] SSE server connected");
       });
 
-      app.post("/messages", express.json(), async (req, res) => {
+      // POST messages endpoint - PROTECTED with OAuth
+      app.post("/messages", ...(selfHosted ? [] : [verifyOAuthToken]), async (req, res) => {
         const sessionId = req.query.sessionId;
+        
+        console.error(`[DEBUG] POST /messages called with sessionId: ${sessionId} for user: ${req.user.id}`);
+        
+        if (!sessionId) {
+          console.error("[ERROR] No sessionId provided");
+          return res.status(400).json({
+            error: "Missing sessionId",
+            message: "sessionId query parameter is required. Establish SSE connection first via GET /sse"
+          });
+        }
+
         const transport = transports[sessionId];
         const server = servers[sessionId];
 
-        if (transport && server) {
+        if (!transport || !server) {
+          console.error(`[ERROR] No transport/server found for sessionId: ${sessionId}`);
+          console.error(`[DEBUG] Available sessions: ${Object.keys(transports).join(", ")}`);
+          return res.status(400).json({
+            error: "Invalid session",
+            message: `No active session found for sessionId: ${sessionId}. Establish SSE connection first via GET /sse`,
+            availableSessions: Object.keys(transports)
+          });
+        }
+
+        try {
           await transport.handlePostMessage(req, res);
-        } else {
-          res.status(400).send("No transport/server found for sessionId");
+        } catch (error) {
+          console.error(`[ERROR] Error handling POST message:`, error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              error: "Internal server error",
+              message: error.message
+            });
+          }
         }
       });
 
@@ -251,6 +478,12 @@ async function run() {
 
       app.listen(port, () => {
         console.error(`[SSE Server] running on port ${port}`);
+        console.error(`[SSE Server] Endpoints available:`);
+        console.error(`[SSE Server]   - GET  /sse (establish connection)`);
+        console.error(`[SSE Server]   - POST /messages?sessionId=<id> (send messages)`);
+        console.error(`[SSE Server]   - GET  /health (health check)`);
+        console.error(`[SSE Server]   - GET  /.well-known/openid-configuration (OpenID Connect discovery)`);
+        console.error(`[SSE Server]   - GET  /.well-known/oauth-authorization-server (OAuth discovery)`);
       });
     } else {
       console.error("[DEBUG] Starting stdio mode for Claude Studio");

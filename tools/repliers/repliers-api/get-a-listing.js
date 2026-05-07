@@ -8,7 +8,7 @@
  */
 const executeFunction = async (args) => {
   const baseUrl = "https://api.repliers.io";
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   let finalUrl; // Declare here to use in error handling
 
   try {
