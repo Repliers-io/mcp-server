@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 import express from "express";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { randomUUID } from "crypto";
 import {
   CallToolRequestSchema,
   ErrorCode,
@@ -209,7 +210,7 @@ async function run() {
   try {
     console.error("[DEBUG] Starting run function");
     const args = process.argv.slice(2);
-    const isSSE = args.includes("--sse");
+    const isSSE = args.includes("--http") || args.includes("--sse");
 
     if (isSSE) {
       console.error("[DEBUG] Starting SSE mode");
@@ -218,11 +219,9 @@ async function run() {
       console.error(`[DEBUG] Mode: ${selfHosted ? 'self-hosted (env key)' : 'hosted (PropelAuth)'}`);
 
       const app = express();
-      // DO NOT use app.use(express.json()) globally - it will consume the body stream
-      // that SSEServerTransport needs to read
+      app.use(express.json());
 
-      const transports = {};
-      const servers = {};
+      const sessions = {}; // sessionId -> { transport, server }
 
       // OAuth token verification middleware using UserInfo endpoint
       async function verifyOAuthToken(req, res, next) {
@@ -384,91 +383,66 @@ async function run() {
 
       // Health check endpoint (public - no auth required)
       app.get("/health", (_req, res) => {
-        console.error("[DEBUG] Health check endpoint called");
         res.status(200).json({
           status: "ok",
           name: SERVER_NAME,
           version: "0.1.0",
-          mode: "sse",
-          oauth_enabled: true
+          mode: "streamable-http",
+          oauth_enabled: !selfHosted
         });
       });
 
-      // SSE endpoint - PROTECTED with OAuth
-      app.get(["/", "/sse"], ...(selfHosted ? [] : [verifyOAuthToken]), async (req, res) => {
-        const repliersApiKey = selfHosted ? process.env.REPLIERS_API_KEY : req.user.repliersApiKey;
-        console.error(`[DEBUG] SSE connection request received${selfHosted ? '' : ` for user: ${req.user.id}`}`);
-
-        const server = new Server(
-          {
-            name: SERVER_NAME,
-            version: "0.1.0",
-          },
-          {
-            capabilities: {
-              tools: {},
-            },
-          }
-        );
-
-        server.onerror = (error) => console.error("[SERVER ERROR]", error);
-
-        const tools = await discoverTools();
-        await setupServerHandlers(server, tools, repliersApiKey);
-
-        const transport = new SSEServerTransport("/messages", res);
-        transports[transport.sessionId] = transport;
-        servers[transport.sessionId] = server;
-
-        console.error(`[DEBUG] SSE session created: ${transport.sessionId}`);
-
-        res.on("close", async () => {
-          console.error(`[DEBUG] SSE connection closed for session: ${transport.sessionId}`);
-          delete transports[transport.sessionId];
-          await server.close();
-          delete servers[transport.sessionId];
-        });
-
-        await server.connect(transport);
-        console.error("[DEBUG] SSE server connected");
-      });
-
-      // POST messages endpoint - PROTECTED with OAuth
-      app.post("/messages", ...(selfHosted ? [] : [verifyOAuthToken]), async (req, res) => {
-        const sessionId = req.query.sessionId;
-        
-        console.error(`[DEBUG] POST /messages called with sessionId: ${sessionId} for user: ${req.user.id}`);
-        
-        if (!sessionId) {
-          console.error("[ERROR] No sessionId provided");
-          return res.status(400).json({
-            error: "Missing sessionId",
-            message: "sessionId query parameter is required. Establish SSE connection first via GET /sse"
-          });
-        }
-
-        const transport = transports[sessionId];
-        const server = servers[sessionId];
-
-        if (!transport || !server) {
-          console.error(`[ERROR] No transport/server found for sessionId: ${sessionId}`);
-          console.error(`[DEBUG] Available sessions: ${Object.keys(transports).join(", ")}`);
-          return res.status(400).json({
-            error: "Invalid session",
-            message: `No active session found for sessionId: ${sessionId}. Establish SSE connection first via GET /sse`,
-            availableSessions: Object.keys(transports)
-          });
-        }
-
+      // MCP endpoint — handles all Streamable HTTP transport methods
+      app.all(["/", "/mcp"], ...(selfHosted ? [] : [verifyOAuthToken]), async (req, res) => {
         try {
-          await transport.handlePostMessage(req, res);
+          const sessionId = req.headers['mcp-session-id'];
+
+          // Route existing sessions directly
+          if (sessionId) {
+            const session = sessions[sessionId];
+            if (!session) {
+              return res.status(404).json({ error: "Session not found" });
+            }
+            await session.transport.handleRequest(req, res, req.body);
+            return;
+          }
+
+          // New session — must be POST (initialize)
+          if (req.method !== 'POST') {
+            return res.status(400).json({ error: "New sessions must be initialized with a POST request" });
+          }
+
+          const repliersApiKey = selfHosted ? process.env.REPLIERS_API_KEY : req.user.repliersApiKey;
+          console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${req.user.id}`}`);
+
+          const server = new Server(
+            { name: SERVER_NAME, version: "0.1.0" },
+            { capabilities: { tools: {} } }
+          );
+          server.onerror = (error) => console.error("[SERVER ERROR]", error);
+
+          const tools = await discoverTools();
+          await setupServerHandlers(server, tools, repliersApiKey);
+
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+            onsessioninitialized: (sid) => {
+              sessions[sid] = { transport, server };
+              console.error(`[DEBUG] Session initialized: ${sid}`);
+            },
+            onsessionclosed: (sid) => {
+              delete sessions[sid];
+              console.error(`[DEBUG] Session closed: ${sid}`);
+            },
+          });
+
+          await server.connect(transport);
+          await transport.handleRequest(req, res, req.body);
+
         } catch (error) {
-          console.error(`[ERROR] Error handling POST message:`, error);
+          console.error("[ERROR] MCP request error:", error);
           if (!res.headersSent) {
-            res.status(500).json({
-              error: "Internal server error",
-              message: error.message
-            });
+            res.status(500).json({ error: "Internal server error", message: error.message });
           }
         }
       });
@@ -477,13 +451,13 @@ async function run() {
       console.error("[DEBUG] Starting Express server on port:", port);
 
       app.listen(port, () => {
-        console.error(`[SSE Server] running on port ${port}`);
-        console.error(`[SSE Server] Endpoints available:`);
-        console.error(`[SSE Server]   - GET  /sse (establish connection)`);
-        console.error(`[SSE Server]   - POST /messages?sessionId=<id> (send messages)`);
-        console.error(`[SSE Server]   - GET  /health (health check)`);
-        console.error(`[SSE Server]   - GET  /.well-known/openid-configuration (OpenID Connect discovery)`);
-        console.error(`[SSE Server]   - GET  /.well-known/oauth-authorization-server (OAuth discovery)`);
+        console.error(`[MCP Server] running on port ${port}`);
+        console.error(`[MCP Server] Endpoints available:`);
+        console.error(`[MCP Server]   - POST /mcp (initialize session)`);
+        console.error(`[MCP Server]   - GET|POST|DELETE /mcp (active sessions)`);
+        console.error(`[MCP Server]   - GET  /health (health check)`);
+        console.error(`[MCP Server]   - GET  /.well-known/openid-configuration`);
+        console.error(`[MCP Server]   - GET  /.well-known/oauth-authorization-server`);
       });
     } else {
       console.error("[DEBUG] Starting stdio mode for Claude Studio");
