@@ -65,7 +65,7 @@ Repliers runs a hosted version of this MCP server. You just point your MCP clien
 Once your account is enabled, connect your MCP client to:
 
 ```
-https://mcp.repliers.io/sse
+https://mcp.repliers.io
 ```
 
 When you connect for the first time you'll be prompted to log in via your Repliers account. After that, your API key is automatically used for all requests.
@@ -86,13 +86,13 @@ PORT=3001
 **2. Start the server:**
 
 ```sh
-node mcpServer.js --sse
+node mcpServer.js --http
 ```
 
 **3. Connect your MCP client to:**
 
 ```
-http://localhost:3001/sse
+http://localhost:3001
 ```
 
 This mode is ideal for personal use or internal tools where you don't need per-user authentication.

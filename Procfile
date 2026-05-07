@@ -1,1 +1,1 @@
-web: node mcpServer.js --sse
+web: node mcpServer.js --http
