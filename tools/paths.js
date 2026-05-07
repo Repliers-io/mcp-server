@@ -1,10 +1,13 @@
 export const toolPaths = [
-  'repliers/repliers-api/property-types-styles.js',
-  'repliers/repliers-api/get-deleted-listings.js',
-  'repliers/repliers-api/areas-cities-and-neighborhoods.js',
-  'repliers/repliers-api/get-address-history.js',
-  'repliers/repliers-api/buildings.js',
+  'repliers/repliers-api/get-parameter-enumerations.js',
   'repliers/repliers-api/get-a-listing.js',
-  'repliers/repliers-api/find-similar-listings.js',
-  'repliers/repliers-api/search.js',
+  'repliers/repliers-api/search-listings.js',
+  'repliers/repliers-api/statistics.js'
+
 ];
+
+// Why would an agent use MCP? 
+// - statistics
+// - CMA
+// - search listings
+// - setup a saved search for a client
