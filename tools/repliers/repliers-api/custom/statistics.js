@@ -1236,4 +1236,4 @@ Our real-time market statistics feature empowers you to create insightful data v
   },
 };
 
-export { repliersListingsSearchTool };
+export { repliersListingsSearchTool as apiTool };

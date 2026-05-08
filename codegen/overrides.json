@@ -1,0 +1,73 @@
+{
+  "_comment": "Keyed by operationId OR 'METHOD /path' for operations without an operationId. All fields are optional.",
+  "_schema": {
+    "name": "Tool name shown to the LLM (overrides operationId-derived default)",
+    "description": "Full tool description (overrides spec summary/description)",
+    "filename": "Output filename (default: derived from operationId)",
+    "forcedQueryParams": "Key/value pairs always appended to the query string (excluded from the tool schema)",
+    "excludeFromSchema": "Parameter names to omit from the tool's input schema entirely",
+    "parameterDescriptions": "Per-parameter description overrides (key = param name)",
+    "additionalContext": "Appended to the auto-generated description (use this to preserve custom context across regens)"
+  },
+
+  "get-a-listing": { "name": "get-listing" },
+  "find-similar-listings": { "name": "get-similar-listings" },
+  "lookup-address-history": { "name": "get-address-listing-history" },
+  "get-deleted-listings": { "name": "get-deleted-listings" },
+  "locations": { "name": "get-listing-areas-and-cities" },
+
+  "GET /locations": { "name": "search-locations" },
+  "GET /locations/autocomplete": { "name": "autocomplete-location-search" },
+
+  "brokerages": { "name": "search-brokerages" },
+  "offices": { "name": "search-offices" },
+  "members": { "name": "search-members" },
+  "buildings": { "name": "search-listing-buildings" },
+  "places": { "name": "search-places" },
+
+  "find-agents": { "name": "search-agents" },
+  "create-an-agent": { "name": "create-agent" },
+  "get-an-agent": { "name": "get-agent" },
+  "update-an-agent": { "name": "update-agent" },
+  "delete-an-agent": { "name": "delete-agent" },
+  "transfer-agents": { "name": "transfer-agent-clients" },
+
+  "search-clients": { "name": "search-clients" },
+  "create-a-client": { "name": "create-client" },
+  "get-a-client": { "name": "get-client" },
+  "update-a-client": { "name": "update-client" },
+  "delete-a-client": { "name": "delete-client" },
+  "rename-a-tag": { "name": "rename-client-tag" },
+
+  "filter-searches": { "name": "list-saved-searches" },
+  "create-a-saved-search": { "name": "create-saved-search" },
+  "get-a-saved-search": { "name": "get-saved-search" },
+  "update-a-saved-search": { "name": "update-saved-search" },
+  "delete-a-saved-search": { "name": "delete-saved-search" },
+
+  "filter-matches": { "name": "list-saved-search-matches" },
+  "get-a-match": { "name": "get-saved-search-match" },
+  "update-a-match": { "name": "update-saved-search-match" },
+
+  "get-estimates": { "name": "list-estimates" },
+  "create-an-estimate": {
+    "name": "create-estimate",
+    "additionalContext": "Before submitting, present all inputs to the user for review and confirmation. Details like bedroom count, property tax, or lot size directly influence the valuation — the user should verify them before proceeding.\n\nCollect as many property attributes as possible. The more fields provided, the more accurate the estimate. Prompt the user for missing fields if they're readily available.\n\nAfter receiving the response, interpret the confidence score for the user:\n- Below 0.05: Excellent — strong comparable data available\n- 0.05 to 0.10: Good — reasonable confidence\n- Above 0.10: Low confidence — limited comparable data. This may indicate that some home facts are inaccurate or that the property type is uncommon in the area. Suggest the user review the inputs."
+  },
+  "create-an-estimate-copy": { "name": "update-estimate" },
+  "delete-an-estimate": { "name": "delete-estimate" },
+
+  "filter-messages": { "name": "list-messages" },
+  "send-a-message": { "name": "send-message" },
+  "get-a-message": { "name": "get-message" },
+
+  "get-favorites": { "name": "list-favorites" },
+  "delete-a-favorite": { "name": "remove-favorite" },
+
+  "GET /nlp": { "name": "list-nlp-search-history" },
+  "POST /nlp": { "name": "search-listings-with-nlp" },
+  "GET /nlp/chats": { "name": "list-nlp-chat-sessions" },
+
+  "POST /buildings": { "name": "search-buildings" },
+  "GET /buildings/{addressKey}": { "name": "get-building" }
+}
