@@ -121,6 +121,130 @@ Add to Claude Desktop → Settings → Developers → Edit Config:
 
 ---
 
+## Tool Generation
+
+Tools are generated from an OpenAPI spec. When the spec changes, re-run the generator to pick up new endpoints, updated descriptions, and parameter changes — without touching custom tools.
+
+---
+
+### How it works
+
+There are two kinds of tools, each in their own directory:
+
+| Directory | Purpose |
+|---|---|
+| `tools/repliers/repliers-api/generated/` | Auto-generated from the OpenAPI spec. Safe to regenerate at any time. |
+| `tools/repliers/repliers-api/custom/` | Hand-written tools (multi-step flows, custom logic). Never touched by the generator. |
+
+Both directories are auto-discovered at server startup — no manifest to maintain.
+
+---
+
+### Generating tools
+
+Place your OpenAPI spec at `openapi.json` in the project root (or configure a different path — see below), then run:
+
+```sh
+npm run generate
+```
+
+The generator will:
+- Write one `.js` file per endpoint into `generated/`
+- Fetch and embed external documentation content into each tool's description (see below)
+- Remove any stale files from previous runs that are no longer in the spec
+- Skip any excluded endpoints
+
+#### External documentation
+
+If an endpoint in the spec has an `externalDocs` field, the generator fetches that URL at generate time, strips the HTML to plain text, and appends the full article content to the tool's description. This gives the LLM substantially more context about when and how to use the tool correctly — including implementation guides, usage examples, and edge cases that aren't captured in the spec itself.
+
+All doc pages are fetched in parallel. If a fetch fails, the tool is still generated using the spec description alone.
+
+---
+
+### Configuration — `codegen/config.js`
+
+```js
+export default {
+  specPath: './openapi.json',   // path to your OpenAPI spec
+  outputDir: './tools/repliers/repliers-api/generated',
+
+  // Endpoints to skip — use operationId OR "METHOD /path"
+  exclude: [
+    'some-operation-id',
+    'DELETE /some/path',
+  ],
+};
+```
+
+---
+
+### Overrides — `codegen/overrides.json`
+
+Keyed by `operationId`, or `"METHOD /path"` for operations without one. All fields are optional and survive every regeneration.
+
+```json
+{
+  "some-operation-id": {
+    "name": "my-tool-name",
+    "description": "Fully replaces the auto-generated description.",
+    "additionalContext": "Appended to the auto-generated description. Use this to preserve custom guidance without losing spec content.",
+    "filename": "my-tool-name.js",
+    "forcedQueryParams": {
+      "listings": "false"
+    },
+    "excludeFromSchema": ["internalParam"],
+    "parameterDescriptions": {
+      "someParam": "Override description for this parameter."
+    }
+  }
+}
+```
+
+| Field | Effect |
+|---|---|
+| `name` | Tool name shown to the LLM. Also used as the filename unless `filename` is set. |
+| `description` | Fully replaces the auto-generated description (spec + fetched docs). |
+| `additionalContext` | Appended to the auto-generated description. Preferred over `description` when you want to add guidance without losing spec content. |
+| `filename` | Output filename. Defaults to `<name>.js`. |
+| `forcedQueryParams` | Key/value pairs always appended to the request URL. Excluded from the tool's input schema. |
+| `excludeFromSchema` | Parameter names to omit from the tool's input schema entirely. |
+| `parameterDescriptions` | Per-parameter description overrides. |
+
+---
+
+### Custom tools
+
+Custom tools live in `tools/repliers/repliers-api/custom/` and are never touched by the generator. Use this directory for multi-step tools, tools that stitch together multiple API calls, or any tool with logic that goes beyond a direct API call.
+
+Each file must export an `apiTool` object:
+
+```js
+export const apiTool = {
+  function: async (args) => {
+    // your implementation
+  },
+  definition: {
+    type: 'function',
+    function: {
+      name: 'my-custom-tool',
+      description: 'What this tool does.',
+      parameters: {
+        type: 'object',
+        properties: {
+          myParam: { type: 'string', description: 'Description.' },
+        },
+        required: ['myParam'],
+      },
+    },
+  },
+};
+```
+
+Drop the file in `custom/` and it will be picked up automatically on the next server start — no registration required.
+
+---
+
 ## Docker
 
 ```sh

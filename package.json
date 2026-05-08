@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "generate": "node codegen/generate.js",
     "list-tools": "node index.js tools"
   },
   "dependencies": {
