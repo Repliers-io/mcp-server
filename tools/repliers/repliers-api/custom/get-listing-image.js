@@ -3,9 +3,7 @@
  *
  * Fetches the raw JPEG bytes directly (rather than returning a CDN URL), which
  * is useful when a URL to the image would be blocked by network restrictions
- * on the caller's side (or vice versa). Also reports the listing's photoCount
- * so callers know how many images are available and can page through them via
- * imageNumber (1 = cover image, 2, 3, 4, ... up to photoCount).
+ * on the caller's side (or vice versa).
  *
  * @param {Object} args - Arguments for downloading a listing image.
  * @param {string} args.mlsNumber - The MLS number of the listing.
@@ -22,19 +20,6 @@ const executeFunction = async (args) => {
   try {
     const headers = { "REPLIERS-API-KEY": apiKey };
 
-    // Look up the listing's photoCount so callers know how many images exist.
-    let photoCount = null;
-    const listingUrl = `${baseUrl}/listings/${encodeURIComponent(mlsNumber)}`;
-    const listingResponse = await fetch(listingUrl, {
-      method: "GET",
-      headers: { Accept: "application/json", ...headers },
-    });
-    if (listingResponse.ok) {
-      const listingData = await listingResponse.json();
-      photoCount = listingData.photoCount ?? null;
-    }
-
-    // Download the requested image.
     const url = new URL(
       `${baseUrl}/listings/${encodeURIComponent(mlsNumber)}/images/download/${encodeURIComponent(imageNumber)}`
     );
@@ -60,12 +45,6 @@ const executeFunction = async (args) => {
       image: {
         data: base64Data,
         mimeType,
-        metadata: {
-          mlsNumber,
-          imageNumber,
-          photoCount,
-          hasMoreImages: photoCount !== null ? imageNumber < photoCount : undefined,
-        },
       },
     };
   } catch (error) {
@@ -87,9 +66,9 @@ const apiTool = {
     type: "function",
     function: {
       name: "Get_Listing_Image",
-      description: `Downloads a listing's photo directly from the Repliers API and returns the raw image bytes, rather than a URL. This is useful for a gen AI assistant when a plain image URL might be blocked by the assistant's network (or vice versa) — the image is fetched server-side and handed back as usable image data instead.
+      description: `Downloads a listing's photo directly from the Repliers API and returns it as base64-encoded image data (an MCP image content block), rather than a URL. This is useful for a gen AI assistant when a plain image URL might be blocked by the assistant's network (or vice versa) — the image is fetched server-side and handed back as viewable image data instead.
 
-imageNumber 1 is the cover/primary photo; request 2, 3, 4, etc. to page through subsequent photos. The response also reports the listing's total photoCount so you know how many images are available in total, and whether more remain.`,
+imageNumber 1 is the cover/primary photo; request 2, 3, 4, etc. to page through subsequent photos. Use get-listing to find the listing's photoCount if you need to know how many images are available in total.`,
       parameters: {
         type: "object",
         properties: {

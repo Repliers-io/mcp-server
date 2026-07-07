@@ -163,40 +163,40 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
 
     try {
       const result = await tool.function({ ...args, _repliersApiKey: repliersApiKey });
-      const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
-
-      const content = [
-        {
-          type: "text",
-          text:
-            `🔗 **API Endpoint Used**\n` +
-            "```\n" +
-            `${apiEndpoint}\n` +
-            "```\n",
-        },
-      ];
 
       if (result.image) {
-        content.push({
-          type: "image",
-          data: result.image.data,
-          mimeType: result.image.mimeType,
-        });
-        content.push({
-          type: "text",
-          text: JSON.stringify(result.image.metadata || {}, null, 2),
-        });
-      } else {
-        content.push({
-          type: "text",
-          text:
-            typeof result.data === "string"
-              ? result.data
-              : JSON.stringify(result.data || result, null, 2),
-        });
+        return {
+          content: [
+            {
+              type: "image",
+              data: result.image.data,
+              mimeType: result.image.mimeType,
+            },
+          ],
+        };
       }
 
-      return { content };
+      const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
+
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `🔗 **API Endpoint Used**\n` +
+              "```\n" +
+              `${apiEndpoint}\n` +
+              "```\n",
+          },
+          {
+            type: "text",
+            text:
+              typeof result.data === "string"
+                ? result.data
+                : JSON.stringify(result.data || result, null, 2),
+          },
+        ],
+      };
     } catch (error) {
       const apiEndpoint = `https://api.repliers.io/${toolName}`;
 
