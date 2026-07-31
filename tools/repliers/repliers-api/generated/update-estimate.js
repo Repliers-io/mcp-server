@@ -51,7 +51,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "update-estimate",
-      description: "Updates an existing property value estimate with revised property attributes. Use this if property details have changed and you need a recalculated estimate.",
+      description: "Update an existing property value estimate with revised property attributes and request a recalculation. Key params: estimateId (required), and any property fields to change (address, details, overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly, clientId). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-agent",
-      description: "Returns the full profile of a specific agent. Useful for building agent profile pages or verifying agent details before making updates.",
+      description: "Fetch the full profile of a specific CRM agent by agentId. Use to display an agent's details or verify their record before an update. Key params: agentId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

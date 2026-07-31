@@ -43,7 +43,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-saved-searches",
-      description: "Returns a list of saved searches. Use this to display a client's active searches, or to audit searches across multiple agents.",
+      description: "List saved searches on the connected account, optionally filtered by client or agent. Use to display a client's active property alerts or browse all configured searches. Key params: clientId, agentId, status, searchId, pageNum, resultsPerPage. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

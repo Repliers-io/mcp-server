@@ -40,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-offices",
-      description: "Use this endpoint to list offices belonging to the MLS. A brokerage may have one or more offices.",
+      description: "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members. If results look wrong or incomplete — see send-feedback.",
       parameters: {
         type: 'object',
         properties: {

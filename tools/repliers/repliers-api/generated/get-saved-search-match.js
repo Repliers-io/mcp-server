@@ -39,7 +39,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-saved-search-match",
-      description: "Returns the details of a specific listing match within a saved search, including the listing data and the match's viewed and liked status.",
+      description: "Fetch the details of a specific listing match within a saved search, including the full listing data and the client's liked/viewed status. Key params: searchId (required), matchId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

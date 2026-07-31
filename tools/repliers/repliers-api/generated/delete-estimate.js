@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "delete-estimate",
-      description: "Deletes a specific property value estimate.",
+      description: "Delete a property value estimate from the connected account. Key params: estimateId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

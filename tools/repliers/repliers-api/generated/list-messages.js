@@ -48,7 +48,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-messages",
-      description: "Use this endpoint to list and filter sent messages.",
+      description: "List and filter agent↔client messages on the connected account. Use to view a conversation thread or audit communications. Key params: clientId, agentId, sender, status, startTime, endTime, pageNum, resultsPerPage. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

@@ -52,7 +52,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-clients",
-      description: "Use this endpoint to get a list of clients that you've created. You can filter for specific clients using parameters like email address and first name. If you don't use any filters all clients will be returned.",
+      description: "List and filter CRM clients on the connected account. Use to find clients by name, email, phone, status, tags, or agentId. Key params: agentId, fname, lname, email, phone, status, tags, keywords, pageNum, resultsPerPage, showSavedSearches, externalId. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

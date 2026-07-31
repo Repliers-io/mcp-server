@@ -47,7 +47,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-agents",
-      description: "Use this endpoint to get a list of agents that you've created. You can filter for specific agents using parameters like email address and first name. If you don't use any filters all agents will be returned.",
+      description: "List and filter CRM agents on the connected account. Use to look up an agent record by name, email, phone, status, or boardId. Key params: fname, lname, email, phone, status, boardId, brokerage, externalId. Operates on the connected account's CRM data — not the public MLS directory.",
       parameters: {
         type: 'object',
         properties: {

@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-client",
-      description: "Returns the full profile of a specific client, including their contact information, preferences, and tags.",
+      description: "Fetch the full profile of a specific CRM client by clientId, including contact info, status, and tags. Key params: clientId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

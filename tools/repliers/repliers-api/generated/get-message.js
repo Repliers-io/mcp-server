@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-message",
-      description: "Use this endpoint to get details about a message that was sent.",
+      description: "Fetch details of a specific message by messageId on the connected account. Use to retrieve the full content and metadata of a sent message. Key params: messageId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

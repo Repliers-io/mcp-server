@@ -42,7 +42,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-nlp-chat-sessions",
-      description: "This endpoint allows you to list and filter all sessions. Each session has a unique nlpId and a session can have many prompts.\n",
+      description: "List NLP conversation sessions for a client on the connected account. Use to browse past AI-assisted chat sessions and their prompts. Key params: clientId, nlpId, resultsPerPage, pageNum, prompts. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

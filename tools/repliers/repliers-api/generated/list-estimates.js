@@ -41,7 +41,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-estimates",
-      description: "Returns a list of property value estimates you've created. Useful for managing and reviewing estimates across multiple properties.",
+      description: "List property value estimates created on the connected account, optionally filtered by clientId or estimateId. Use to show a client their saved valuations. Key params: clientId, estimateId, pageNum, resultsPerPage. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

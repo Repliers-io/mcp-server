@@ -45,7 +45,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "update-saved-search-match",
-      description: "Updates the viewed or liked status of a specific listing match. Use this to track client engagement — for example, marking a match as viewed when a client opens a listing, or liked when they express interest.",
+      description: "Mark a saved-search match as viewed or liked/disliked by the client. Use to track client engagement with matched listings. Key params: searchId (required), matchId (required), viewed, liked. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

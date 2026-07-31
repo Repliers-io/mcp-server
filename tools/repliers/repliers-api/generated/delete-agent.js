@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "delete-agent",
-      description: "Use this endpoint to delete an agent. You must specify a new agentId to assign the deleted agent's clients to.",
+      description: "Delete a CRM agent record from the connected account. Requires specifying a replacement agentId to reassign the deleted agent's clients. Key params: agentId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

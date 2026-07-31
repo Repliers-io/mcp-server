@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "delete-saved-search",
-      description: "Deletes a saved search. The client will no longer receive notifications for this search.",
+      description: "Delete a saved search. The client will stop receiving notifications for this search. Key params: searchId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

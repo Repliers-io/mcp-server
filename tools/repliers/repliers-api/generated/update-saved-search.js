@@ -89,7 +89,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "update-saved-search",
-      description: "Use this endpoint to update a saved search.\n\n<strong>Important</strong> - When a saved search is updated the filters must be specific enough so that the initial matches do not exceed 100 listings otherwise a 406 (not accepted) response will be received.",
+      description: "Update a saved search's criteria or notification settings. All filter fields are replaced on update — include the complete desired criteria, not just changed fields. Key params: searchId (required), clientId, and any filter criteria to apply. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

@@ -38,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-saved-search",
-      description: "Returns the full details of a specific saved search, including its filter criteria and notification settings.",
+      description: "Fetch the full criteria and settings for a specific saved search by searchId. Use to display or verify a client's search before editing it. Key params: searchId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {
