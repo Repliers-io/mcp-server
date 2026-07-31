@@ -35,6 +35,16 @@ test("patches named params, preserves everything else verbatim, removes aliases"
   assert.equal(Object.keys(result.data)[0], "appliedFilters");
 });
 
+test("remove wins when the same param is both set and removed", async () => {
+  let fetched;
+  global.fetch = async (url) => {
+    fetched = new URL(String(url));
+    return { ok: true, json: async () => ({}) };
+  };
+  await apiTool.function({ url: base, maxPrice: 500000, remove: ["maxPrice"], _repliersApiKey: "k" });
+  assert.equal(fetched.searchParams.get("maxPrice"), null);
+});
+
 test("unknown patch args are ignored, not interpolated", async () => {
   let fetched;
   global.fetch = async (url) => {

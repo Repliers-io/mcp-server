@@ -34,6 +34,7 @@ const executeFunction = async (args) => {
       for (const alias of aliases[name] || []) url.searchParams.delete(alias);
     }
   }
+  // Remove runs last: when the same param is both set and removed in one call, remove wins.
   for (const name of args.remove || []) {
     if (removablePattern.test(name)) url.searchParams.delete(name);
   }
@@ -97,7 +98,7 @@ const definition = {
         remove: {
           type: "array",
           items: { type: "string" },
-          description: "Parameter names to DELETE from the query — filters the NLP applied that the user did not ask for (alias names like minBeds are accepted).",
+          description: "Parameter names to DELETE from the query — filters the NLP applied that the user did not ask for (alias names like minBeds are accepted). Runs after patching — removing a param you also set in the same call deletes it.",
         },
       },
       required: ["url"],
