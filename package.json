@@ -7,7 +7,7 @@
   "scripts": {
     "generate": "node codegen/generate.js",
     "list-tools": "node index.js tools",
-    "test": "node --test test/**/*.test.js"
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.9.0",

@@ -3,12 +3,23 @@ import assert from "node:assert/strict";
 import { trelloConfigured, createCard } from "../lib/trello.js";
 
 const realFetch = global.fetch;
+const realEnv = {
+  TRELLO_API_KEY: process.env.TRELLO_API_KEY,
+  TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
+  TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
+};
 beforeEach(() => {
   process.env.TRELLO_API_KEY = "test-key";
   process.env.TRELLO_API_TOKEN = "test-token";
   process.env.TRELLO_LIST_ID = "test-list";
 });
-afterEach(() => { global.fetch = realFetch; });
+afterEach(() => {
+  global.fetch = realFetch;
+  for (const [key, value] of Object.entries(realEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 test("trelloConfigured true only when all three env vars set", () => {
   assert.equal(trelloConfigured(), true);
