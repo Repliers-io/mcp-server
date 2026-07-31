@@ -49,10 +49,33 @@ test("zero-results detected from nested listings.count", () => {
   assert.ok(result.data._feedback.signals.includes("zero-results"));
 });
 
+test("zero-results suppressed when another present count is non-zero", () => {
+  const result = {
+    data: { request: { url: "https://api.repliers.io/listings?city=X" }, count: 0, listings: { count: 3 } },
+  };
+  augmentResult("Search_Listings", result);
+  assert.ok(!result.data._feedback.signals.includes("zero-results"));
+});
+
+test("zero-results fires on top-level count alone", () => {
+  const result = {
+    data: { request: { url: "https://api.repliers.io/listings?city=X" }, count: 0 },
+  };
+  augmentResult("Search_Listings", result);
+  assert.ok(result.data._feedback.signals.includes("zero-results"));
+});
+
 test("api-error results get _feedback on the result itself", () => {
   const result = { error: "boom", details: "x" };
   augmentResult("search-locations", result);
   assert.deepEqual(result._feedback.signals, ["api-error"]);
+});
+
+test("error with data object attaches _feedback to data, the part the handler serializes", () => {
+  const result = { error: "boom", data: { count: 5 } };
+  augmentResult("search-locations", result);
+  assert.ok(result.data._feedback.signals.includes("api-error"));
+  assert.equal(result._feedback, undefined);
 });
 
 test("low level: clean non-search result stays untouched", () => {
