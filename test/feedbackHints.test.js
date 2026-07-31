@@ -95,3 +95,41 @@ test("off level and missing Trello config suppress everything", () => {
   augmentResult("Search_Listings", zero);
   assert.equal(zero.data._feedback, undefined);
 });
+
+test("zero-results: non-search tool with count 0 gets no _feedback at low level", () => {
+  process.env.FEEDBACK_PROMPT_LEVEL = "low";
+  const result = { data: { count: 0 } };
+  augmentResult("agents", result);
+  assert.equal(result.data._feedback, undefined);
+});
+
+test("zero-results: non-search tool with count 0 gets no zero-results signal at high level", () => {
+  const result = { data: { count: 0 } };
+  augmentResult("clients", result);
+  // CRM tools at high level may get generic verify note, but must not have zero-results signal
+  if (result.data._feedback) {
+    assert.ok(
+      !result.data._feedback.signals.includes("zero-results"),
+      "non-search tool must not get zero-results signal"
+    );
+  }
+});
+
+test("no-location-filter: suppressed for union (complexQuery) searches with body.queries", () => {
+  const result = {
+    data: {
+      request: {
+        url: "https://api.repliers.io/listings",
+        body: { queries: [{ city: "Seattle" }] },
+      },
+      listings: { count: 5 },
+    },
+  };
+  augmentResult("Search_Listings", result);
+  if (result.data._feedback) {
+    assert.ok(
+      !result.data._feedback.signals.includes("no-location-filter"),
+      "no-location-filter must not fire when body.queries is present"
+    );
+  }
+});
