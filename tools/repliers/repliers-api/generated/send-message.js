@@ -44,7 +44,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "send-message",
-      description: "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (required). Operates on the connected account's CRM data.",
+      description: "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (object with message/subject/listings sub-fields). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {
