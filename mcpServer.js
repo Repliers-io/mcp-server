@@ -13,6 +13,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { discoverTools } from "./lib/tools.js";
+import { augmentResult } from "./lib/feedbackHints.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -175,6 +176,8 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
           ],
         };
       }
+
+      augmentResult(toolName, result);
 
       const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
 
