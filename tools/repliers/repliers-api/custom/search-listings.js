@@ -73,8 +73,7 @@ const apiTool = {
     type: "function",
     function: {
       name: "Search_Listings",
-      description: `If the user's message gestures for a listings search, for example 'i'm looking for a home to buy in boston', the parameters of their
-      search should be extracted and sent to this endpoint. This endpoint is designed to translate their conversational search into listing results.`,
+      description: `Natural-language listings search — the entry point for ALL new property searches. Pass the user's request as a plain-English prompt (translate if needed); the NLP engine converts it into API filters and returns listings. RESPONSE CONTRACT: appliedFilters (leading block) shows which filters were ACTUALLY applied, family by family (location, propertyType, style, priceRange, bedrooms…— null means not applied); complexQuery=true means a multi-query union search that refine-search cannot patch; nlpId correlates with server logs — include it in send-feedback reports. ALWAYS verify appliedFilters against the user's request before presenting results: the parser sometimes drops or substitutes constraints. Missing/wrong basic filter → fix via refine-search; dropped semantic constraint → re-run with it restated emphatically; then report via send-feedback (nlp-misparse). If results look wrong or incomplete — see send-feedback.`,
       parameters: {
         type: "object",
         properties: {
