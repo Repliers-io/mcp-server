@@ -2,12 +2,23 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 const realFetch = global.fetch;
+const realEnv = {
+  TRELLO_API_KEY: process.env.TRELLO_API_KEY,
+  TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
+  TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
+};
 beforeEach(() => {
   process.env.TRELLO_API_KEY = "k";
   process.env.TRELLO_API_TOKEN = "t";
   process.env.TRELLO_LIST_ID = "l";
 });
-afterEach(() => { global.fetch = realFetch; });
+afterEach(() => {
+  global.fetch = realFetch;
+  for (const [key, value] of Object.entries(realEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 // Import with a cache-busting query so each test sees fresh env at module load.
 const load = () =>
