@@ -45,12 +45,13 @@ const executeFunction = async (args) => {
     // Parse and return the response data
     const data = await response.json();
     const requestUrl = data.request?.url || null;
+    const { appliedFilters: _af, complexQuery: _cq, ...rest } = data;
     return {
       url: finalUrl,
       data: {
         appliedFilters: requestUrl ? parseAppliedFilters(requestUrl) : null,
         complexQuery: Boolean(data.request?.body?.queries),
-        ...data,
+        ...rest,
       },
     };
   } catch (error) {
