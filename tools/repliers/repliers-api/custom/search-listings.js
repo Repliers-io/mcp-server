@@ -1,3 +1,5 @@
+import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
+
 /**
  * Function to search listings using the Repliers API.
  *
@@ -42,9 +44,14 @@ const executeFunction = async (args) => {
     
     // Parse and return the response data
     const data = await response.json();
+    const requestUrl = data.request?.url || null;
     return {
       url: finalUrl,
-      data
+      data: {
+        appliedFilters: requestUrl ? parseAppliedFilters(requestUrl) : null,
+        complexQuery: Boolean(data.request?.body?.queries),
+        ...data,
+      },
     };
   } catch (error) {
     return {
