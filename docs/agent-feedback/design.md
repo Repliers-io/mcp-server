@@ -280,6 +280,7 @@ Description-quality check (problem 1): in a cold session, ask the naive agent "w
 - Refining POST-body union queries.
 - MCP resources with full API recipes (relocated KB articles).
 - Alternative sinks (database, Repliers endpoint) — the Trello client is isolated in its own module so a sink swap is additive.
+- Distributable agent guide (`AGENT_GUIDE.md` / README section for agent developers): an out-of-protocol copy of the server `instructions` with dialogue examples, for clients that do not surface MCP `instructions`. v1 deliberately relies on in-protocol channels only.
 
 ## 15. Implementation phases (detailed plan to follow via writing-plans)
 
