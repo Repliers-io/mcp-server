@@ -14,6 +14,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { discoverTools } from "./lib/tools.js";
 import { augmentResult } from "./lib/feedbackHints.js";
+import { serverInstructions } from "./lib/serverInstructions.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -433,7 +434,7 @@ async function run() {
 
           const server = new Server(
             { name: SERVER_NAME, version: "0.1.0" },
-            { capabilities: { tools: {} } }
+            { capabilities: { tools: {} }, instructions: serverInstructions }
           );
           server.onerror = (error) => console.error("[SERVER ERROR]", error);
 
@@ -488,6 +489,7 @@ async function run() {
           capabilities: {
             tools: {},
           },
+          instructions: serverInstructions,
         }
       );
 
