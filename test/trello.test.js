@@ -1,6 +1,9 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { trelloConfigured, createCard } from "../lib/trello.js";
+import { readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { trelloConfigured, createCard, dryRunLogPath } from "../lib/trello.js";
 
 const realFetch = global.fetch;
 const realEnv = {
@@ -8,6 +11,7 @@ const realEnv = {
   TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
   TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
   FEEDBACK_DRY_RUN: process.env.FEEDBACK_DRY_RUN,
+  FEEDBACK_DRY_RUN_LOG: process.env.FEEDBACK_DRY_RUN_LOG,
 };
 beforeEach(() => {
   process.env.TRELLO_API_KEY = "test-key";
@@ -61,4 +65,43 @@ test("createCard returns ok:false on HTTP error and on network throw", async () 
   const failed = await createCard({ name: "n", desc: "d" });
   assert.equal(failed.ok, false);
   assert.match(failed.error, /ECONNREFUSED/);
+});
+
+test("dry-run appends the card to FEEDBACK_DRY_RUN_LOG and still writes stderr", async () => {
+  const logPath = join(tmpdir(), `fb-cards-${process.pid}.log`);
+  rmSync(logPath, { force: true });
+  process.env.FEEDBACK_DRY_RUN = "true";
+  process.env.FEEDBACK_DRY_RUN_LOG = logPath;
+  const realError = console.error;
+  const stderr = [];
+  console.error = (msg) => stderr.push(String(msg));
+  try {
+    await createCard({ name: "card one", desc: "body one" });
+    await createCard({ name: "card two", desc: "body two" });
+  } finally {
+    console.error = realError;
+  }
+  const log = readFileSync(logPath, "utf8");
+  assert.match(log, /card one/);
+  assert.match(log, /body one/);
+  assert.match(log, /card two/, "second card must append, not overwrite");
+  assert.ok(stderr.some((l) => l.includes("card one")), "stderr must still receive the card");
+  rmSync(logPath, { force: true });
+});
+
+test("dry-run log defaults to feedback-cards.log in the server root", () => {
+  delete process.env.FEEDBACK_DRY_RUN_LOG;
+  assert.match(dryRunLogPath().replaceAll("\\", "/"), /mcp-server\/feedback-cards\.log$/);
+});
+
+test("an unwritable log path never breaks the card result", async () => {
+  process.env.FEEDBACK_DRY_RUN = "true";
+  process.env.FEEDBACK_DRY_RUN_LOG = join(tmpdir(), "no-such-dir-xyz", "cards.log");
+  const realError = console.error;
+  console.error = () => {};
+  try {
+    assert.deepEqual(await createCard({ name: "n", desc: "d" }), { ok: true, dryRun: true });
+  } finally {
+    console.error = realError;
+  }
 });

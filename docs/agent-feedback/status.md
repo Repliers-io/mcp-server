@@ -1,7 +1,7 @@
 # Agent Feedback — Status & Resume Point
 
 **Updated:** 2026-08-28
-**Branch:** `feat/agent-feedback` (pushed to origin; unit suite 37/37 green via `npm test`)
+**Branch:** `feat/agent-feedback` (pushed to origin; unit suite 47/47 green via `npm test`)
 
 ## Where we are
 
@@ -20,14 +20,17 @@ Run 5 (2026-08-28): the weak-generation reporting skip was a **payload-truncatio
 
 Run 6: strict wording KEPT (decision recorded in test-results.md) + `refined` signal scoped in code to constraint patches only (`constraintPatch` flag; presentation-only refines no longer nudge a report). Fable core run 1/2 on current wording: ALL PASS.
 
-Resume point: (1) second consecutive all-PASS Fable core run on the current wording → acceptance, (2) real-Trello A4 before merge, (3) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
+MCP tool annotations (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`) are now emitted for every tool (`lib/tools.js` → `transformTools`), so read-only consumer surfaces (ChatGPT Plus connectors) filter the roster correctly. Query-battery run 1 started (see [query-battery-results.md](./query-battery-results.md)) — **aborted by the Claude Code session quota after 5 queries**; 23 queries still to run.
+
+Resume point: (1) finish the query battery (B4–B6, B8, B10, L, W) after the quota window resets — consider a cheaper model or the Copilot CLI model-lab track, (2) second consecutive all-PASS Fable core run on the current wording → acceptance, (3) real-Trello A4 before merge, (4) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
 
 ## Trello-less testing: `FEEDBACK_DRY_RUN`
 
 Added 2026-08-28 to run the test plan without Trello credentials. `FEEDBACK_DRY_RUN=true` in `.env`:
 
 - `trelloConfigured()` returns true → `send-feedback` appears in the roster, instructions and nudges mention it — the full "Trello ✓" behavior.
-- `createCard` does NOT call Trello: it prints the card (name + desc) to the server **stderr** and returns `{ ok: true, dryRun: true }`.
+- `createCard` does NOT call Trello: it prints the card (name + desc) to the server **stderr**, mirrors the same text to a log file, and returns `{ ok: true, dryRun: true }`.
+- The log file is `FEEDBACK_DRY_RUN_LOG`, defaulting to `feedback-cards.log` in the mcp-server root (gitignored). Append-only, so a headless eval can read every card back after the run instead of scraping server stderr. A write failure is warned about and never breaks the tool result.
 
 Test-plan expectation changes under dry-run:
 
