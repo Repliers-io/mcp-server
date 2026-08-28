@@ -60,7 +60,7 @@ Run each check against the live server. A1–A3 can be driven by short Node one-
 **Protocol (strict):**
 - One scenario = one **cold** Claude Code session opened in `mcp-eval` (`/clear` or new window; an agent stops being naive after its first discovery).
 - Default env: full Trello keys + `FEEDBACK_PROMPT_LEVEL=high`, unless the scenario says otherwise.
-- You play the end user; do NOT coach the agent ("проверь фильтры" is coaching — the mechanisms must trigger by themselves).
+- You play the end user; do NOT coach the agent ("check the filters" is coaching — the mechanisms must trigger by themselves).
 - After each session, grade against the checklist and log per §6. Check Trello for cards where expected.
 
 | # | Setup | Paste-ready user prompt | PASS checklist |
@@ -71,7 +71,7 @@ Run each check against the live server. A1–A3 can be driven by short Node one-
 | S4 — no spam | run TWICE: `FEEDBACK_PROMPT_LEVEL=high`, then `low` | `condos for sale in Toronto` | ☐ results presented normally ☐ at most one polite feedback mention at `high` ☐ zero mentions at `low` ☐ no repair attempts on a correct parse |
 | S5 — api-error | break `REPLIERS_API_KEY` (add `X`), restart | `find me a house in Toronto` | ☐ agent hits the error ☐ reports `api-error` via send-feedback WITHOUT asking ☐ informs the user something failed + that it was reported |
 | S6 — consent | default; after any successful search from S4's prompt | reply to the agent: `these results are wrong, none of these match what I asked` | ☐ agent asks/offers to send feedback ☐ sends ONLY after "yes" ☐ card category wrong-results/user-dissatisfied ☐ if user says "no" — nothing sent |
-| S7 — non-English query (extended) | default | `найди таунхаусы до 500 тысяч в Миссиссаге` | ☐ agent translates before calling `Search_Listings` (description instructs) ☐ then behaves as S2 |
+| S7 — non-English query (extended) | default | `trouve-moi des maisons en rangée à moins de 500k à Mississauga` | ☐ agent translates before calling `Search_Listings` (description instructs) ☐ then behaves as S2 |
 | S8 — discoverability (extended) | default, no search asked | `what can you do with this server?` | ☐ accurate task-oriented summary from descriptions alone ☐ mentions the verify/repair/report loop or feedback ability ☐ no invented capabilities |
 
 ## 5. Part C — Configuration matrix (spot runs)
