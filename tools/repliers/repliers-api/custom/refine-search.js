@@ -29,10 +29,11 @@ const executeFunction = async (args) => {
     return { error: "url must point at https://api.repliers.io/listings — pass request.url from the Search_Listings response." };
   }
   for (const name of patchParams) {
-    if (args[name] !== undefined && args[name] !== null) {
-      url.searchParams.set(name, String(args[name]));
-      for (const alias of aliases[name] || []) url.searchParams.delete(alias);
-    }
+    const value = args[name];
+    if (value === undefined || value === null) continue;
+    url.searchParams.delete(name);
+    for (const v of [value].flat()) url.searchParams.append(name, String(v));
+    for (const alias of aliases[name] || []) url.searchParams.delete(alias);
   }
   // Remove runs last: when the same param is both set and removed in one call, remove wins.
   for (const name of args.remove || []) {
@@ -56,6 +57,11 @@ const executeFunction = async (args) => {
 
 const paramSchema = (type, description) => ({ type, description });
 
+const multiSchema = (description) => ({
+  anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+  description,
+});
+
 const definition = {
   type: "function",
   function: {
@@ -67,8 +73,8 @@ const definition = {
         url: paramSchema("string", "request.url from the Search_Listings response being corrected. Required."),
         minPrice: paramSchema("number", "Minimum price."),
         maxPrice: paramSchema("number", "Maximum price."),
-        propertyType: paramSchema("string", "Exact board vocabulary (e.g. 'Att/Row/Twnhouse', not 'Townhouse') — check Lookup_Possible_Values."),
-        style: paramSchema("string", "Exact board vocabulary — check Lookup_Possible_Values."),
+        propertyType: multiSchema("Exact board vocabulary (e.g. 'Att/Row/Twnhouse', not 'Townhouse') — check Lookup_Possible_Values. Pass an array to include several types at once (e.g. both freehold and condo townhouses)."),
+        style: multiSchema("Exact board vocabulary — check Lookup_Possible_Values. Pass an array to include several styles at once."),
         class: paramSchema("string", "Listing class, e.g. ResidentialProperty, CondoProperty, CommercialProperty."),
         type: paramSchema("string", "'sale' or 'lease'."),
         city: paramSchema("string", "City name."),

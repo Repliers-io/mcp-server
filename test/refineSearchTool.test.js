@@ -45,6 +45,23 @@ test("remove wins when the same param is both set and removed", async () => {
   assert.equal(fetched.searchParams.get("maxPrice"), null);
 });
 
+test("array propertyType writes repeated params; array style replaces the existing value", async () => {
+  let fetched;
+  global.fetch = async (url) => {
+    fetched = new URL(String(url));
+    return { ok: true, json: async () => ({}) };
+  };
+  await apiTool.function({
+    url: base,
+    propertyType: ["Att/Row/Twnhouse", "Condo Townhouse"],
+    _repliersApiKey: "k",
+  });
+  assert.deepEqual(fetched.searchParams.getAll("propertyType"), ["Att/Row/Twnhouse", "Condo Townhouse"]);
+  assert.equal(fetched.searchParams.get("waterfront"), "true"); // pass-through intact
+  await apiTool.function({ url: base, style: ["2-Storey", "3-Storey"], _repliersApiKey: "k" });
+  assert.deepEqual(fetched.searchParams.getAll("style"), ["2-Storey", "3-Storey"]); // Semi-Detached replaced
+});
+
 test("unknown patch args are ignored, not interpolated", async () => {
   let fetched;
   global.fetch = async (url) => {
