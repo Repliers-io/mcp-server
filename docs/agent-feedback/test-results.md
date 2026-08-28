@@ -75,11 +75,46 @@ Sibling of [test-plan.md](./test-plan.md) §6. Append one section per run.
 | S1 Haiku re-run | **PASS** (notes) | Repaired (refine city=Miami → 0, plus an NLP re-prompt with "Miami, Florida"), did not mislead, and now **OFFERS feedback** ("Report this empty result to the Repliers team?") — the offer was entirely absent in Run 2. Notes: didn't explicitly tell the user the original parse dropped the location; didn't diagnose no-coverage via location tools |
 | S2 Haiku re-run | **PARTIAL** | **Multi-value adopted first try**: single clean `refine-search` with `propertyType: ["Att/Row/Twnhouse","Condo Townhouse"]` after vocabulary lookup (vs 5 thrashy calls in Run 2). But its hand-built base url lost `type=sale` (rentals mixed in; presented 10 of the 28 sale listings) and **happy-path reporting is still skipped** |
 | S2 Fable re-run | **PASS** | Multi-value first try with `type=sale` intact; correct 28 results; sent `nlp-misparse`. This run's NLP dropped the **city** (kept `state=Ontario`) — a different misparse than Run 2's type-narrowing, both caught. NLP non-determinism is real; the verify protocol handles both variants |
+| S2 Sonnet (`claude-sonnet-5`) | **PASS** | Full protocol like Fable: diffed appliedFilters (this run's NLP dropped **propertyType AND type=sale** — third distinct misparse variant on the same prompt), vocabulary lookup, multi-value array first try, second refine added `type=sale` when rentals surfaced, presented 29 sale listings, **sent `nlp-misparse`** with missedConstraints and told the user. Slower on payload handling (turns=32, 7 script iterations) but protocol-complete. Session `44ce582d` |
 
 **Conclusions:**
 - The multi-value fix is discovered and used correctly by both tiers from the schema alone.
 - The `refined` signal closes Haiku's reporting gap when it co-fires with `zero-results` (S1), but not in the success path (S2): once results are served, Haiku ignores the post-success obligation regardless of the note.
+- **The happy-path reporting skip is Haiku-specific**: Sonnet follows the post-success report step in full, same as Fable. The mid tier does not need the v2 telemetry; only the weak tier does.
 - **The definitive fix is the planned v2 server-side telemetry** (design.md §6.5/§7: log every refine diff as objective misparse evidence with no agent participation) — it removes the dependence on weak-tier discipline entirely. Recommend promoting it from v2 to next-in-line.
+
+## Run 4 — 2026-08-28, old-generation mid-tier comparison
+
+**Question:** is the happy-path reporting skip a weak-tier trait, an old-generation trait, or neither? Probed the oldest reachable mid-tier models (Claude 3.x and Sonnet 4.0 are retired/inaccessible; oldest available: Sonnet 4.5). Same code as Run 3, env dry-run + high.
+
+| Run | Verdict | Evidence |
+|---|---|---|
+| S2 Sonnet 4.5 | **Protocol PASS / data FAIL** | Full verify→repair→report: vocabulary lookup, multi-value array first try, `nlp-misparse` sent and disclosed. But its refine lost `type=sale` and it **presented rentals as purchases** — "168 townhouses under $500k" listing $3,400/mo leases as prices, unnoticed. Session `e4cebc09` |
+| S2 Sonnet 4.6 | **Data PASS / report FAIL** | Mirror image: multi-value first try, spotted the rental mix, second refine with `type=sale`, correct 29 sale listings with honest caveats — but **no send-feedback call and no offer** (same skip as Haiku). Session `e50e0524` |
+| S1 Sonnet 4.5 | **PASS** (notes) | Caught the dropped location, repaired, refused to mislead, sent `nlp-misparse` with missedConstraints + toolCalls. Weak diagnosis: suggested "Fort Lauderdale" alternatives that don't exist in the Ontario dataset either. Session `24c91fe9` |
+
+**Conclusions — the two failure axes are independent and evolved separately:**
+
+- **Post-success reporting discipline is NOT "old = worse"**: Sonnet 4.5 (Sep 2025) reports reliably in both scenarios; the skip appears in the 4.6/Haiku-4.5 generation and is fixed again in Sonnet 5/Fable. The description-tail + nudge channels are sufficient for the 4.5 generation.
+- **Data sanity IS roughly monotonic**: 4.5 blends leases into purchase results and invents coverage; 4.6 and 5 catch the sale/lease trap; 5/Fable additionally diagnose dataset coverage correctly.
+- **Multi-value propertyType schema is discovered by every generation probed** (4.5, 4.6, 5, Haiku 4.5, Fable) — the `anyOf` form is robustly picked up from the schema alone.
+- Full model matrix on S2 now: Fable ✓✓, Sonnet 5 ✓✓, Sonnet 4.6 data✓/report✗, Sonnet 4.5 report✓/data✗, Haiku 4.5 report✗/data~. Modern top tier = union of both disciplines.
+
+## Run 5 — 2026-08-28, fixing the weak-generation reporting skip
+
+**Step 1 — hardened wording alone: FAILED.** All three channels were strengthened (the `refined` note became imperative with a definition-of-done and report-BEFORE-present ordering; the refine-search description tail got "you MUST"; golden rule 3 got "mandatory, a repaired search without a report is an unfinished task"). Haiku S2 re-run: still no report (session `3c48da2f`). Wording was never the bottleneck.
+
+**Step 2 — root cause: nudge placement.** `_feedback` was attached as the LAST key of the payload, serializing AFTER the listings blob. Weak models read huge responses head-first (`head -c` on the saved tool result) and **never see a trailing nudge**. The evidence had been there all along: Haiku reported in every small-payload case (S5 error, S1 zero-results) and skipped in every large-payload case (S2, 4.6's S2). Fix: `_feedback` now serializes FIRST in `data` (`lib/feedbackHints.js`) — the same "prepend before the blob" principle design.md §4 already applied to `appliedFilters`. Unit test pins the key order. Suite 41/41.
+
+**Step 3 — re-runs on the leading-nudge build:**
+
+| Run | Verdict | Evidence |
+|---|---|---|
+| S2 Haiku | **PASS** | Spotted "16 lease mixed with 4 sale", filtered rentals out of the presentation, **sent `nlp-misparse`**, told the user. First happy-path report from Haiku. Notes: presented only the 4 sale listings from page 1 (no second type=sale refine); `nlpId: "N/A"`. Session `5451e098` |
+| S2 Sonnet 4.6 | **FULL PASS** | Vocabulary → multi-value refine → chained second refine with `type=sale` built from the first refine's API-endpoint-header url (closes Part A observation #3 — agents DO find the url in the text header) → correct 29 sale listings → **sent `nlp-misparse`** with nlpId. Session `557a3c0d` |
+| S4 Haiku guard | **PASS (no spam)** | Clean parse, single search, zero feedback mentions — the hardened wording + leading placement did not create reporting on correct parses. Session `a4a8fc77` |
+
+**Conclusion:** the "generational reporting skip" was a **payload-truncation artifact, not a discipline gap** — the nudge channel works on every generation once it is actually visible. The v2 server-side telemetry is downgraded from "needed for weak tier" to optional depth. Note for exit criteria: wording changed in this run, so the Fable core streak resets — two consecutive all-PASS core runs on the current wording are still required.
 
 ### Transcript traceability
 

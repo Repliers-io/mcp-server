@@ -16,7 +16,9 @@ Implementation is **complete** per [design.md](./design.md):
 
 Code delivered on top of the feature: `refined` signal in refine-search responses (`lib/feedbackHints.js`) and multi-value `propertyType`/`style` in refine-search (arrays → repeated params; both tiers adopt it from the schema alone). Unit suite 40/40.
 
-Resume point: (1) v2 refine telemetry decision, (2) second consecutive Fable core run for exit criteria, (3) real-Trello A4 before merge, (4) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
+Run 5 (2026-08-28): the weak-generation reporting skip was a **payload-truncation artifact** — `_feedback` serialized after the listings blob and head-first readers never saw it. Fixed by serializing `_feedback` FIRST in the payload (plus hardened mandatory-report wording in all three channels). Haiku and Sonnet 4.6 S2 now PASS incl. the report; no-spam guard clean. v2 telemetry downgraded to optional.
+
+Resume point: (1) two consecutive all-PASS Fable core runs on the CURRENT wording (streak reset by Run 5 wording changes), (2) real-Trello A4 before merge, (3) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
 
 ## Trello-less testing: `FEEDBACK_DRY_RUN`
 
