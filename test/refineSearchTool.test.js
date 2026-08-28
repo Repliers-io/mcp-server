@@ -62,6 +62,16 @@ test("array propertyType writes repeated params; array style replaces the existi
   assert.deepEqual(fetched.searchParams.getAll("style"), ["2-Storey", "3-Storey"]); // Semi-Detached replaced
 });
 
+test("constraintPatch flags constraint changes, not presentation-only refines", async () => {
+  global.fetch = async () => ({ ok: true, json: async () => ({}) });
+  const presentation = await apiTool.function({ url: base, resultsPerPage: 20, pageNum: 2, _repliersApiKey: "k" });
+  assert.equal(presentation.constraintPatch, false);
+  const constraint = await apiTool.function({ url: base, maxPrice: 500000, resultsPerPage: 20, _repliersApiKey: "k" });
+  assert.equal(constraint.constraintPatch, true);
+  const removal = await apiTool.function({ url: base, remove: ["style"], _repliersApiKey: "k" });
+  assert.equal(removal.constraintPatch, true);
+});
+
 test("unknown patch args are ignored, not interpolated", async () => {
   let fetched;
   global.fetch = async (url) => {

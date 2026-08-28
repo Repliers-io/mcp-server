@@ -134,6 +134,12 @@ test("refined signal fires on successful refine-search at high and low", () => {
   assert.deepEqual(low.data._feedback.signals, ["refined"]);
 });
 
+test("refined signal suppressed on presentation-only refines (constraintPatch: false)", () => {
+  const result = { constraintPatch: false, data: { count: 28 } };
+  augmentResult("refine-search", result);
+  assert.ok(!result.data._feedback.signals.includes("refined"));
+});
+
 test("refined signal absent on Search_Listings and on refine-search errors", () => {
   const search = {
     data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 2 } },

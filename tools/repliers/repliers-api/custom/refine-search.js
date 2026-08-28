@@ -17,6 +17,9 @@ const aliases = { minBedrooms: ["minBeds"], maxBedrooms: ["maxBeds"] };
 
 const removablePattern = /^[A-Za-z0-9]{1,40}$/;
 
+// Patching only these does not imply an NLP misparse — no refined-signal nudge.
+const presentationParams = new Set(["resultsPerPage", "pageNum", "sortBy", "fields"]);
+
 const executeFunction = async (args) => {
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   let url;
@@ -40,6 +43,11 @@ const executeFunction = async (args) => {
     if (removablePattern.test(name)) url.searchParams.delete(name);
   }
   const finalUrl = url.toString();
+  const changed = [
+    ...patchParams.filter((name) => args[name] !== undefined && args[name] !== null),
+    ...(args.remove || []),
+  ];
+  const constraintPatch = changed.some((name) => !presentationParams.has(name));
   try {
     const response = await fetch(finalUrl, {
       headers: { Accept: "application/json", "REPLIERS-API-KEY": apiKey },
@@ -48,6 +56,7 @@ const executeFunction = async (args) => {
     const data = await response.json();
     return {
       url: finalUrl,
+      constraintPatch,
       data: { appliedFilters: parseAppliedFilters(finalUrl), ...data },
     };
   } catch (error) {
