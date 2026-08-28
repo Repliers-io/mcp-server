@@ -115,6 +115,14 @@ test("zero-results: non-search tool with count 0 gets no zero-results signal at 
   }
 });
 
+test("_feedback serializes FIRST in data — clients truncate huge payloads head-first", () => {
+  const result = {
+    data: { request: { url: "https://api.repliers.io/listings?minBeds=5" }, listings: { count: 3 } },
+  };
+  augmentResult("Search_Listings", result);
+  assert.equal(Object.keys(result.data)[0], "_feedback");
+});
+
 test("refined signal fires on successful refine-search at high and low", () => {
   const result = { data: { count: 28 } };
   augmentResult("refine-search", result);
