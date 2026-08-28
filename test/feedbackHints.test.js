@@ -115,6 +115,28 @@ test("zero-results: non-search tool with count 0 gets no zero-results signal at 
   }
 });
 
+test("refined signal fires on successful refine-search at high and low", () => {
+  const result = { data: { count: 28 } };
+  augmentResult("refine-search", result);
+  assert.ok(result.data._feedback.signals.includes("refined"));
+  assert.match(result.data._feedback.note, /nlp-misparse/);
+  process.env.FEEDBACK_PROMPT_LEVEL = "low";
+  const low = { data: { count: 28 } };
+  augmentResult("refine-search", low);
+  assert.deepEqual(low.data._feedback.signals, ["refined"]);
+});
+
+test("refined signal absent on Search_Listings and on refine-search errors", () => {
+  const search = {
+    data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 2 } },
+  };
+  augmentResult("Search_Listings", search);
+  assert.ok(!search.data._feedback.signals.includes("refined"));
+  const err = { error: "boom" };
+  augmentResult("refine-search", err);
+  assert.ok(!err._feedback.signals.includes("refined"));
+});
+
 test("no-location-filter: suppressed for union (complexQuery) searches with body.queries", () => {
   const result = {
     data: {
