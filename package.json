@@ -5,6 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "node mcpServer.js",
+    "start:http": "node mcpServer.js --http",
     "generate": "node codegen/generate.js",
     "list-tools": "node index.js tools",
     "test": "node --test \"test/**/*.test.js\""
