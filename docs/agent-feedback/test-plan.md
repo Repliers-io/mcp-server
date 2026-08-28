@@ -36,6 +36,8 @@ TRELLO_LIST_ID=<test list id>
 FEEDBACK_PROMPT_LEVEL=high
 ```
 
+**Trello-less variant:** set `FEEDBACK_DRY_RUN=true` instead of the three `TRELLO_*` vars — the feedback channel acts fully configured, but cards are dumped to the server stderr and `send-feedback` returns `{ ok: true, dryRun: true }`. See [status.md](./status.md) for the per-check expectation changes.
+
 **Restart the server after every `.env` change** (Ctrl+C → re-run). The MCP client (mcp-eval session) does not need re-configuring — same URL.
 
 ## 3. Part A — Technical verification (no LLM, ~15 min)
