@@ -12,7 +12,7 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { discoverTools } from "./lib/tools.js";
+import { discoverTools, toolAnnotations } from "./lib/tools.js";
 import { augmentResult } from "./lib/feedbackHints.js";
 import { buildServerInstructions } from "./lib/serverInstructions.js";
 
@@ -124,6 +124,7 @@ async function transformTools(tools) {
         name: definitionFunction.name,
         description: definitionFunction.description,
         inputSchema: definitionFunction.parameters,
+        annotations: toolAnnotations(definitionFunction.name),
       };
     })
     .filter(Boolean);
