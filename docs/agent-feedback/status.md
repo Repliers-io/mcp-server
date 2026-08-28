@@ -18,7 +18,9 @@ Code delivered on top of the feature: `refined` signal in refine-search response
 
 Run 5 (2026-08-28): the weak-generation reporting skip was a **payload-truncation artifact** — `_feedback` serialized after the listings blob and head-first readers never saw it. Fixed by serializing `_feedback` FIRST in the payload (plus hardened mandatory-report wording in all three channels). Haiku and Sonnet 4.6 S2 now PASS incl. the report; no-spam guard clean. v2 telemetry downgraded to optional.
 
-Resume point: (1) two consecutive all-PASS Fable core runs on the CURRENT wording (streak reset by Run 5 wording changes), (2) real-Trello A4 before merge, (3) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
+Run 6: strict wording KEPT (decision recorded in test-results.md) + `refined` signal scoped in code to constraint patches only (`constraintPatch` flag; presentation-only refines no longer nudge a report). Fable core run 1/2 on current wording: ALL PASS.
+
+Resume point: (1) second consecutive all-PASS Fable core run on the current wording → acceptance, (2) real-Trello A4 before merge, (3) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
 
 ## Trello-less testing: `FEEDBACK_DRY_RUN`
 

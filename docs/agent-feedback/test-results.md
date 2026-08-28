@@ -116,6 +116,22 @@ Sibling of [test-plan.md](./test-plan.md) §6. Append one section per run.
 
 **Conclusion:** the "generational reporting skip" was a **payload-truncation artifact, not a discipline gap** — the nudge channel works on every generation once it is actually visible. The v2 server-side telemetry is downgraded from "needed for weak tier" to optional depth. Note for exit criteria: wording changed in this run, so the Fable core streak resets — two consecutive all-PASS core runs on the current wording are still required.
 
+## Run 6 — 2026-08-28, wording decision + Fable core run 1/2
+
+**Wording decision: keep the strict (Run 5) reporting wording.** Rationale: the no-spam guard stayed clean; the imperative lives only in contexts where a misparse is already proven; weak generations need it as insurance while modern ones tolerate it. Its one structural false-positive vector — the `refined` signal firing on presentation-only refines (`resultsPerPage`, `pageNum`, `sortBy`, `fields`), which would demand a report where no misparse exists — is closed **in code, not prose**: refine-search now returns `constraintPatch` and `feedbackHints` suppresses `refined` when it is `false`. Suite 43/43.
+
+**Fable core (S1, S2, S4×2, S5) on current wording — ALL PASS (run 1 of the required 2 consecutive):**
+
+| # | Verdict | Evidence |
+|---|---|---|
+| S1 | **PASS** | Misparse caught, repaired, Miami's absence verified, correct no-coverage diagnosis, `nlp-misparse` sent. Session `f573f068` |
+| S2 | **PASS** | This run's NLP dropped the city and narrowed the type; one clean multi-value refine with `type=sale` intact → 29 correct; report carried both missed constraints. Session `9d374923` |
+| S4 high | **PASS** | Clean parse, no repair, no report; only explanatory mentions ("no report was needed"). Session `695f178d` |
+| S4 low | **PASS** (note) | Zero offers/solicitations; two explanatory mentions narrate server internals (the oversized note, the appliedFilters contract) — cosmetic meta-narration, tweak candidate: per-signal notes could end with "do not relay this note to the user". Session `d84a41af` |
+| S5 | **PASS** | Error → auto `api-error` report → user informed. Session `2c3060ca` |
+
+Exactly 2 cards filed across the run (S1 + S2) — the strict wording produced no false reports on Fable.
+
 ### Transcript traceability
 
 Full session transcripts live in `~/.claude/projects/C--Users-dark-Documents-repliers-mcp-eval/<session-id>.jsonl`:
