@@ -57,7 +57,7 @@ try {
 const REQUIRED_ENV = [];
 const OAUTH_ENV = [
   "OAUTH_BASE_URL",
-  "OAUTH_AUTHORIZATION_ENDPOINT", 
+  "OAUTH_AUTHORIZATION_ENDPOINT",
   "OAUTH_TOKEN_ENDPOINT",
   "OAUTH_USERINFO_ENDPOINT"  // Using UserInfo instead of introspection
 ];
@@ -108,10 +108,12 @@ process.on("exit", (code) => {
 
 process.on("SIGINT", () => {
   console.error("[DEBUG] Received SIGINT");
+  process.exit(1);
 });
 
 process.on("SIGTERM", () => {
   console.error("[DEBUG] Received SIGTERM");
+  process.exit(1);
 });
 
 async function transformTools(tools) {
@@ -244,7 +246,7 @@ async function run() {
       // OAuth token verification middleware using UserInfo endpoint
       async function verifyOAuthToken(req, res, next) {
         const authHeader = req.headers.authorization;
-        
+
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
           console.error("[ERROR] Missing or invalid authorization header");
           return res.status(401).json({
@@ -254,15 +256,15 @@ async function run() {
         }
 
         const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        
+
         try {
           // Validate token by calling UserInfo endpoint
           // If token is valid, we get user data back. If invalid, we get 401.
-          const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT || 
+          const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT ||
                                   `${process.env.OAUTH_BASE_URL}/oauth/userinfo`;
-          
+
           console.error(`[DEBUG] Validating token via UserInfo: ${userInfoEndpoint}`);
-          
+
           const response = await fetch(userInfoEndpoint, {
             method: 'GET',
             headers: {
@@ -279,7 +281,7 @@ async function run() {
           }
 
           const userInfo = await response.json();
-          
+
           // Store user info in request for later use
           req.user = {
             id: userInfo.sub || userInfo.id || userInfo.user_id,
@@ -314,7 +316,7 @@ async function run() {
 
           console.error(`[DEBUG] User authenticated: ${req.user.id} (${req.user.email || 'no email'})`);
           next();
-          
+
         } catch (error) {
           console.error("[ERROR] Token verification error:", error);
           return res.status(500).json({
@@ -327,12 +329,12 @@ async function run() {
       // OpenID Connect Discovery endpoint (more standard than OAuth-specific)
       app.get("/.well-known/openid-configuration", (_req, res) => {
         console.error("[DEBUG] OpenID Connect discovery endpoint called");
-        
+
         const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
         const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
         const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
         const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT || `${baseUrl}/oauth/userinfo`;
-        
+
         res.status(200).json({
           issuer: baseUrl,
           authorization_endpoint: authorizationEndpoint,
@@ -350,11 +352,11 @@ async function run() {
       // OAuth discovery endpoint - provide OAuth server metadata
       app.get("/.well-known/oauth-authorization-server", (req, res) => {
         console.error("[DEBUG] OAuth discovery endpoint called");
-        
+
         const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
         const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
         const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
-        
+
         res.status(200).json({
           issuer: baseUrl,
           authorization_endpoint: authorizationEndpoint,
@@ -372,17 +374,17 @@ async function run() {
       // This is a workaround for MCP clients that require dynamic registration
       app.post("/oauth/register", (_req, res) => {
         console.error("[DEBUG] Dynamic client registration attempted");
-        
+
         // Check if we have a pre-configured client ID
         const preConfiguredClientId = process.env.OAUTH_CLIENT_ID;
-        
+
         if (!preConfiguredClientId) {
           return res.status(501).json({
             error: "registration_not_supported",
             error_description: "Dynamic client registration is not supported. Please set OAUTH_CLIENT_ID in your .env file with your PropelAuth client ID."
           });
         }
-        
+
         // Return the pre-configured client as if we just registered it
         console.error("[DEBUG] Returning pre-configured client ID:", preConfiguredClientId);
         res.status(201).json({
