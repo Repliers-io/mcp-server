@@ -7,6 +7,7 @@ const realEnv = {
   TRELLO_API_KEY: process.env.TRELLO_API_KEY,
   TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
   TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
+  FEEDBACK_DRY_RUN: process.env.FEEDBACK_DRY_RUN,
 };
 beforeEach(() => {
   process.env.TRELLO_API_KEY = "test-key";
@@ -40,6 +41,17 @@ test("createCard posts query params and returns shortUrl", async () => {
   assert.equal(sent.origin + sent.pathname, "https://api.trello.com/1/cards");
   assert.equal(sent.searchParams.get("idList"), "test-list");
   assert.equal(sent.searchParams.get("name"), "card name");
+});
+
+test("dry-run: channel configured without keys, card logged instead of posted", async () => {
+  delete process.env.TRELLO_API_KEY;
+  delete process.env.TRELLO_API_TOKEN;
+  delete process.env.TRELLO_LIST_ID;
+  process.env.FEEDBACK_DRY_RUN = "true";
+  assert.equal(trelloConfigured(), true);
+  global.fetch = async () => { throw new Error("must not fetch in dry-run"); };
+  const result = await createCard({ name: "card name", desc: "card body" });
+  assert.deepEqual(result, { ok: true, dryRun: true });
 });
 
 test("createCard returns ok:false on HTTP error and on network throw", async () => {
