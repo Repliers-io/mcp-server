@@ -20,9 +20,21 @@ Run 5 (2026-08-28): the weak-generation reporting skip was a **payload-truncatio
 
 Run 6: strict wording KEPT (decision recorded in test-results.md) + `refined` signal scoped in code to constraint patches only (`constraintPatch` flag; presentation-only refines no longer nudge a report). Fable core run 1/2 on current wording: ALL PASS.
 
-MCP tool annotations (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`) are now emitted for every tool (`lib/tools.js` → `transformTools`), so read-only consumer surfaces (ChatGPT Plus connectors) filter the roster correctly. Query-battery run 1 started (see [query-battery-results.md](./query-battery-results.md)) — **aborted by the Claude Code session quota after 5 queries**; 23 queries still to run.
+MCP tool annotations (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`) are now emitted for every tool (`lib/tools.js` → `transformTools`), so read-only consumer surfaces (ChatGPT Plus connectors) filter the roster correctly. Query battery: run 1 (Fable) was **quota-aborted after 5 queries**; **run 2 on `claude-sonnet-5` completed all 28 — 27 PASS / 1 FAIL** (see [query-battery-results.md](./query-battery-results.md)). The battery's real output is a filed set of upstream defects: `type=sale` never inferred for purchase queries (7 cards), locations dropped (6), relative dates resolved to the wrong year, `minBeds` not excluding parking/lockers, and a `Market_Statistics` 400. The one FAIL (W11) is a product decision, not a bug: the agent answered an out-of-scope mortgage-rate question with invented current figures and named sources after zero tool calls.
 
-Resume point: (1) finish the query battery (B4–B6, B8, B10, L, W) after the quota window resets — consider a cheaper model or the Copilot CLI model-lab track, (2) second consecutive all-PASS Fable core run on the current wording → acceptance, (3) real-Trello A4 before merge, (4) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
+Resume point: (1) decide the W11 out-of-scope policy (an explicit "listings/locations/stats only" clause in the server instructions vs. accepting harness-dependent behaviour) and hand the five defects above to Repliers, (2) second consecutive all-PASS Fable core run on the current wording → acceptance, (3) real-Trello A4 before merge, (4) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
+
+## Consent policy: `FEEDBACK_CONSENT`
+
+`auto` (default) keeps the shipped behaviour: technical failures (api-error, a confirmed misparse) are reported without asking, subjective complaints are offered first.
+
+`always-ask` makes consent mandatory for **every** category. It is a single switch that rewrites all three delivery channels at once, so they can never disagree:
+
+- **Golden rule 3** (`lib/serverInstructions.js`) — "never send feedback without the user's explicit consent … including technical failures".
+- **`send-feedback` description** — opens with `CONSENT REQUIRED`, drops the report-directly clause.
+- **Every `_feedback` note** (`lib/feedbackHints.js`) — the shared "then report" clause becomes "then ask … only after they agree"; api-error and refined get their own consent-first wording.
+
+Use it for consumer surfaces where an unattended report would surprise the end user (e.g. a realtor's own chat), and keep `auto` for eval/staging where reports are the point.
 
 ## Trello-less testing: `FEEDBACK_DRY_RUN`
 
