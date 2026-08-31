@@ -79,7 +79,7 @@ const apiTool = {
         properties: {
           prompt: {
             type: "string",
-            description: "The user's natural language search string.",
+            description: "The user's natural language search string. Pass the place names the user actually said and nothing more — do not add a parent city, area, state or country you inferred, and do not carry a location from a previous search onto a new place name. Neighborhood names repeat across cities in this dataset, so an invented parent yields the wrong geography or none; resolve ambiguous places with search-locations first.",
           }
          
         },
