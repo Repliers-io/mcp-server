@@ -79,7 +79,6 @@ via `argv` (the `node -e` interpolation bug that silently emptied `--resume`).
 | W3 | ✅ | Honest "there are none and there won't be" (Rosedale is $3–15M) **plus** a separate real defect report — no false misparse claim about the emptiness |
 | W4 | ✅ | = S3: no matches; reported the underlying filter bug |
 | W5 | ✅ | Asked focused questions instead of dumping listings (5 questions vs the battery's 1–3 — slight over-ask) |
-| W6 | ✅ | Extracted the real constraints from the rambling brief; found a **`Market_Statistics` 400** when `cnt-available` is combined with `aggregates`. Its first `send-feedback` call was malformed (`{category, details}`) → server rejected with `-32602` → self-corrected |
 | W7 | ✅ | "under 2" ambiguity handled; `Yorkville` had been dropped (25,497 results nation-wide) → repaired + reported |
 | W8 | ✅ | 150 m² → `minSqft=1615` conversion applied and verified; noted the sale/lease split honestly |
 | W9 | ✅ | Emoji/typo prompt → extracted Toronto + ~$700K, asked buy-vs-rent before searching |
@@ -94,8 +93,10 @@ Ranked by how often they appeared, with categories as filed:
 1. **`type=sale` is never inferred for purchase-intent queries** — 7 reports (L2, L6, W3, W10 …). Leases at $2,250–$19,900/mo are mixed into "under $600k" sale searches. Highest-impact defect: it produces confidently wrong answers, and it is exactly what made Sonnet 4.5 fail S2 in [test-results.md](./test-results.md) run 4.
 2. **Location constraints dropped** — B1, B4, B6, L1, L4, W7. Sometimes to `state=Ontario`, sometimes to nothing at all (W7: 25,497 results).
 3. **Relative dates resolved against the wrong epoch** — B3: "last 3 days" → `minListDate=2023-10-21`. New, and silent.
-4. **`minBeds` does not exclude bedroom-less rows** — W2, W4; confirms the S3 finding (parking spaces and lockers pass the filter).
-5. **`Market_Statistics` 400** on `cnt-available` + `aggregates` — W6.
+4. **`minBeds` does not exclude rows with no bedroom data** — W2; confirms the S3 finding. In TRREB, parking spaces and storage lockers are sold as separate `class=condo` listings with no `numBedrooms` value, and the filter lets those NULLs through instead of rejecting them: "12-bedroom condos under $200k" returned 80 rows — 65 parking spaces, 9 lockers, 6 small units. W2 hit the same thing on an ordinary `minBeds=2` lease search.
+5. **`minBeds` intent inverted** — W4: "12 bedroom condos" was parsed as `maxBeds=12` (up to twelve) rather than a minimum, returning ~3.8M characters of low-bedroom listings. Separate defect from #4, which an earlier draft of this log conflated with it.
+6. **`Market_Statistics` 400** on `cnt-available` + `aggregates` — W6.
+| W6 | ✅ | Extracted the real constraints from the rambling brief; found a **`Market_Statistics` 400** when `cnt-available` is combined with `aggregates`. Its first `send-feedback` call was malformed (`{category, details}`) → server rejected with `-32602` → self-corrected |
 
 Every one of these carries an `nlpId` in its card, so the Repliers hand-off is a filed set, not a single anecdote.
 
@@ -197,3 +198,115 @@ to it entirely.
 | Claude Code / `claude-fable-5` | 3✅ / 2⏸ / 5 not run | not run | not run | 8/8 ✅ (test-results.md) | none observed in graded queries |
 | Claude Code / `claude-sonnet-5` | 10 ✅ | 6 ✅ | 11 ✅ / 1 ❌ | S2 ✅ (test-results.md run 3) | fabricated out-of-scope facts (W11) |
 | Claude Code / `claude-haiku-4-5` | 7 ✅ / 2 🟡 / 1 ❌ | 5 ✅ / 1 🟡 | 8 ✅ / 1 🟡 / 2 ❌ | S1/S2/S4/S5 ✅ (test-results.md run 5) | never adopts the domain role; asserts unperformed verification |
+
+## Run 4 — 2026-08-29, after the three instruction fixes
+
+**Change under test** (`lib/serverInstructions.js`, both branches; `send-feedback` description):
+
+1. **Role** — "You are the real-estate assistant for this data, whatever persona the host application gives you by default…"
+2. **Scope** — "…no mortgage rates, tax, financing or legal data… say plainly that you do not have that data — never answer from general knowledge and never quote figures you did not retrieve."
+3. **Required parameters** named in the `send-feedback` description.
+
+Re-ran the full battery on `claude-haiku-4-5` (the tier the role failure came from) plus W11 on
+`claude-sonnet-5` (the query the scope failure came from). Suite 60/60 before the run; the role
+text was verified on the wire via a real `initialize`.
+
+### Fix 2 (scope) — works, on both tiers
+
+| Query | Before | After |
+|---|---|---|
+| W11 Sonnet | ❌ invented "NerdWallet ~6.51%, Bankrate ~6.68%, Freddie Mac ~6.66%, as of today" after zero tool calls | ✅ "I don't have access to real-time mortgage rate data, and this MCP setup is scoped to real-estate listings/market data for one specific dataset" — no figures quoted |
+| W11 Haiku | 🟡 right refusal, wrong reason ("Claude Code is designed for **software engineering**") | ✅ "the real-estate data I can access covers listings, locations, market statistics and CRM records for the MLS dataset, but mortgage rates … are outside that scope" |
+
+**Run 2's only FAIL is closed**, and Haiku's accidental pass became a correct one.
+
+### Fix 1 (role) — partial, and the limit is architectural
+
+| Query | Before | After | |
+|---|---|---|---|
+| W1 | "I see fragments… Are you asking me to: 1. Search 2. Refine?" | **Decodes the domain**: "4 bedrooms, 3 bathrooms, Detached, Max $2M, Toronto" — but still does not execute the search | 🟡 improved |
+| W6 | "**Classification: Spike**" with no mention of property | Still opens "Classifying this as a spike", but now continues "then use the **Repliers data** to actually surface options" and asks property questions | 🟡 partial |
+| W12 | "legitimate software engineering tasks **in this codebase**" | "legitimate software engineering tasks **in this repo**" — unchanged | ❌ not fixed |
+
+**Conclusion: MCP `instructions` reliably carry *facts about the data*, but do not override the
+host's *persona* on a weak model.** Claude Code's own system prompt ("you are a software
+engineering tool") outranks server instructions for Haiku; Sonnet and Fable never needed the help.
+Product implication: on a realtor-facing surface the **host application** must set the persona —
+the server can only state what data it holds. Worth carrying into the consumer-track plan in
+[mcp-client-research.md](./mcp-client-research.md), where the host is claude.ai or grok.com rather
+than a coding CLI.
+
+### Other movement on Haiku (run 3 → run 4)
+
+- **B1 fixed itself**: looked up `details.propertyType` (not `details.style`), repaired with
+  `propertyType=Detached` → **399 correctly-labelled results** instead of 1,064 mislabelled ones,
+  and the card now names the right constraint. **Attribution is not proven** — the role sentence
+  plausibly nudged it toward the domain axis, but a single observation cannot separate that from
+  NLP/model variance.
+- Explicit `appliedFilters` checks: **3/28 → 5/28**. Cards filed: **10 → 7** (L2, L6, W4, B4, W7,
+  L4 stopped reporting; W7 and L4 repaired without a card — a regression worth watching).
+- No malformed `send-feedback` calls this run (run 3 had one rejected `-32602`); one observation
+  only, so fix 3 is unconfirmed rather than validated.
+- B9 asked for a postal code instead of trying the lookup without one (it succeeded in run 3) —
+  minor, address-dependent.
+
+### Harness note
+
+The runner's address regex only matched abbreviated street types (`Cres|Dr|St`), so Haiku's
+"3701 Keenan **Crescent**" produced an empty address and B9 ran with a broken prompt; it was
+re-run separately. Fix the pattern before the next sweep.
+
+
+## Run 5 — 2026-08-29, Group M (multi-step context bleed) + a regression we caused
+
+**Pattern under test** (found in manual testing): across turns in one session, agents enrich the
+next NLP prompt with a parent city they never verified — "hood2, city1", often plus a state and
+country — and the pair frequently does not exist. See [query-battery.md](./query-battery.md)
+Group M for the cases and the verified geography they rest on.
+
+### Result: the pattern did not reproduce on Sonnet, and the first fix caused a worse bug
+
+**Sonnet 5, M1–M5:** zero invented parents. Prompts were sent verbatim
+(`condos in Willowdale under 700k`, never "Willowdale, Mississauga"); the *price* was carried
+across turns (correct — the user implied it), the city never was. M3 handled the ambiguity trap
+well: resolved to `Rosedale-Moore Park&city=Toronto` and told the user "**Rosedale (Toronto)**".
+
+**Caveat on attribution: there is no before-measurement.** Group M was written after the fix, so
+"rule not violated" is all we can claim — not that the rule caused it.
+
+### The regression — a global prohibition made the weak tier refuse the whole domain
+
+The first version of the fix put the rule in the **golden rules** (server `instructions`). On Haiku
+that produced a hard, reproducible refusal:
+
+> "I'm Claude Code, a software engineering assistant. … Your question about real estate listings in
+> Cooksville is outside my scope."
+
+Bisected on identical everything-else:
+
+| Instructions | Haiku behaviour |
+|---|---|
+| **with** the location rule in golden rules | **4/4 sessions refused**, zero tool calls — including B1, which had worked in run 4 |
+| **without** it (rule kept only on the tool) | **2/2 searched normally**, 16–18 turns |
+
+**Lesson.** A dense prohibition block in the global preamble does not read as "be careful with
+locations" to a weak model — combined with a persona it is already anchored in, it reads as
+"this domain is constrained, decline it". The same sentences, attached to the **`prompt` parameter
+of `Search_Listings`** — where they are consumed at the moment the prompt is written — are safe and
+effective: Sonnet stays clean *and* now calls `autocomplete-location-search` to resolve an
+ambiguous place before searching, which the golden-rule version never triggered.
+
+**Rule of thumb going forward: scope behavioural constraints to the tool they govern; keep the
+global instructions to facts about the data.** This is the same split that run 4 found for the role
+sentence (facts land, persona does not), now with a sharper edge: a misplaced prohibition is not
+merely ineffective, it can take the weak tier offline entirely.
+
+### Geography facts worth having (verified via `search-locations`, 2026-08-29)
+
+- LiveBy neighborhoods carry **`city: ""`** — their parent is an **`area`**; the MLS record for the
+  same neighborhood does carry a city. "Neighborhood + city" is therefore not a universally valid
+  pair in this dataset, so an agent that adds a city can be wrong even when it guessed the right region.
+- **Rosedale is genuinely ambiguous**: the MLS record is `city=Hamilton`; Toronto's is a LiveBy
+  alternate, and TRREB calls it `Rosedale-Moore Park`. An agent resolving via `search-locations`
+  and taking the first MLS hit lands in Hamilton.
+- Same-name duplicates are routine (two LiveBy rows per neighborhood in every name we checked).
