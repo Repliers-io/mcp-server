@@ -1,12 +1,13 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { promptLevel, augmentResult } from "../lib/feedbackHints.js";
+import { promptLevel, consentMode, augmentResult } from "../lib/feedbackHints.js";
 
 const realEnv = {
   TRELLO_API_KEY: process.env.TRELLO_API_KEY,
   TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
   TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
   FEEDBACK_PROMPT_LEVEL: process.env.FEEDBACK_PROMPT_LEVEL,
+  FEEDBACK_CONSENT: process.env.FEEDBACK_CONSENT,
 };
 
 beforeEach(() => {
@@ -14,6 +15,7 @@ beforeEach(() => {
   process.env.TRELLO_API_TOKEN = "t";
   process.env.TRELLO_LIST_ID = "l";
   process.env.FEEDBACK_PROMPT_LEVEL = "high";
+  delete process.env.FEEDBACK_CONSENT;
 });
 
 afterEach(() => {
@@ -168,4 +170,39 @@ test("no-location-filter: suppressed for union (complexQuery) searches with body
       "no-location-filter must not fire when body.queries is present"
     );
   }
+});
+
+test("consentMode defaults to auto and rejects unknown values", () => {
+  assert.equal(consentMode(), "auto");
+  process.env.FEEDBACK_CONSENT = "banana";
+  assert.equal(consentMode(), "auto");
+  process.env.FEEDBACK_CONSENT = "always-ask";
+  assert.equal(consentMode(), "always-ask");
+});
+
+test("auto mode: api-error note tells the agent to report without asking", () => {
+  const result = { error: "boom" };
+  augmentResult("search-locations", result);
+  assert.match(result._feedback.note, /no need to ask/i);
+});
+
+test("always-ask mode: every note requires consent before sending", () => {
+  process.env.FEEDBACK_CONSENT = "always-ask";
+
+  const err = { error: "boom" };
+  augmentResult("search-locations", err);
+  assert.match(err._feedback.note, /only after they agree|only if they agree/i);
+  assert.doesNotMatch(err._feedback.note, /no need to ask/i);
+
+  const refined = { constraintPatch: true, data: { count: 28 } };
+  augmentResult("refine-search", refined);
+  assert.match(refined.data._feedback.note, /only after they agree|only if they agree/i);
+  assert.doesNotMatch(refined.data._feedback.note, /as your NEXT tool call/i);
+
+  const search = {
+    data: { request: { url: "https://api.repliers.io/listings?minBeds=5" }, listings: { count: 0 } },
+  };
+  augmentResult("Search_Listings", search);
+  assert.doesNotMatch(search.data._feedback.note, /report via send-feedback/i,
+    "unconditional report instruction must not survive in always-ask mode");
 });

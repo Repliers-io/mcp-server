@@ -6,11 +6,13 @@ const realEnv = {
   TRELLO_API_KEY: process.env.TRELLO_API_KEY,
   TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
   TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
+  FEEDBACK_CONSENT: process.env.FEEDBACK_CONSENT,
 };
 beforeEach(() => {
   process.env.TRELLO_API_KEY = "k";
   process.env.TRELLO_API_TOKEN = "t";
   process.env.TRELLO_LIST_ID = "l";
+  delete process.env.FEEDBACK_CONSENT;
 });
 afterEach(() => {
   global.fetch = realFetch;
@@ -44,4 +46,31 @@ test("apiTool is null when Trello env is missing", async () => {
   delete process.env.TRELLO_API_KEY;
   const { apiTool } = await load();
   assert.equal(apiTool, null);
+});
+
+test("auto mode: description reports technical failures without asking", async () => {
+  const { apiTool } = await load();
+  assert.match(apiTool.definition.function.description, /without asking/i);
+});
+
+test("always-ask mode: description demands consent for every category", async () => {
+  process.env.FEEDBACK_CONSENT = "always-ask";
+  const { apiTool } = await load();
+  const description = apiTool.definition.function.description;
+  assert.doesNotMatch(description, /report directly without asking/i);
+  assert.match(description, /only after|explicit consent|ask the user first/i);
+  assert.match(description, /every category|including api-error/i);
+});
+
+test("description names the required parameters in both consent modes", async () => {
+  for (const mode of [undefined, "always-ask"]) {
+    if (mode) process.env.FEEDBACK_CONSENT = mode;
+    else delete process.env.FEEDBACK_CONSENT;
+    const { apiTool } = await load();
+    const description = apiTool.definition.function.description;
+    for (const param of ["category", "summary", "userQuery"]) {
+      assert.match(description, new RegExp(param), `${mode ?? "auto"} mode must name ${param}`);
+    }
+    assert.match(description, /required/i);
+  }
 });

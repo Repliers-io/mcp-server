@@ -34,6 +34,7 @@ npm run generate             # regenerate tools/…/generated/ from openapi.json
 | `FEEDBACK_DRY_RUN` | `true` = feedback channel acts configured without Trello keys; cards are dumped to server stderr instead of posted (testing mode) |
 | `FEEDBACK_DRY_RUN_LOG` | Path the dry-run cards are mirrored to; defaults to `feedback-cards.log` in the repo root (gitignored) |
 | `FEEDBACK_PROMPT_LEVEL` | Nudge eagerness: `high` (default) / `low` / `off` |
+| `FEEDBACK_CONSENT` | `auto` (default) = technical failures are reported without asking; `always-ask` = no report may be sent without the user's agreement, in every category. Rewrites golden rule 3, the send-feedback description, and every nudge note |
 | `PORT`, `RESULTS_PER_PAGE` | HTTP port (3001), page size |
 | `OAUTH_*`, `PROPELAUTH_API_KEY` | Hosted-deployment auth only; irrelevant locally |
 

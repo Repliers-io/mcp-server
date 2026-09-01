@@ -1,5 +1,6 @@
 import { buildFeedbackCard } from "../../../../lib/feedbackCard.js";
 import { createCard, trelloConfigured } from "../../../../lib/trello.js";
+import { consentMode } from "../../../../lib/feedbackHints.js";
 
 const categories = [
   "nlp-misparse", "empty-results", "wrong-results", "api-error", "user-dissatisfied", "other",
@@ -14,11 +15,16 @@ const executeFunction = async (args) => {
   return { url: "https://api.trello.com/1/cards", data: result };
 };
 
+const description =
+  consentMode() === "always-ask"
+    ? `Report a search-quality or API problem to the Repliers team (creates a triage ticket). Required parameters: category, summary, userQuery. CONSENT REQUIRED — this server is configured so that no report may be sent without the user's agreement, for every category including api-error and nlp-misparse: describe what went wrong, ask whether to report it, and call this tool only after the user says yes. If they decline, do not send. Categories: a tool returned an error (api-error); the NLP parse dropped or substituted a constraint that you then repaired via refine-search or a restated prompt (nlp-misparse — include missedConstraints); results formally match but the user says they are wrong (wrong-results / user-dissatisfied); an empty result set that looks legitimate (empty-results). Always tell the user when a report was sent. Repair first, report second: feedback never replaces serving the user.`
+    : `Report a search-quality or API problem to the Repliers team (creates a triage ticket). Required parameters: category, summary, userQuery. WHEN TO USE — technical failures, report directly without asking the user (the report contains nothing beyond what was already sent to the API): a tool returned an error (category api-error); you confirmed the NLP parse dropped or substituted a user constraint, after repairing it via refine-search or a restated prompt (category nlp-misparse — include missedConstraints). Subjective problems — OFFER first, send after the user agrees: results formally match but the user says they are wrong (wrong-results / user-dissatisfied); an empty result set that looks legitimate (empty-results). Always send when the user explicitly asks to report an issue, and always tell the user when a report was sent. Repair first, report second: feedback never replaces serving the user.`;
+
 const definition = {
   type: "function",
   function: {
     name: "send-feedback",
-    description: `Report a search-quality or API problem to the Repliers team (creates a triage ticket). WHEN TO USE — technical failures, report directly without asking the user (the report contains nothing beyond what was already sent to the API): a tool returned an error (category api-error); you confirmed the NLP parse dropped or substituted a user constraint, after repairing it via refine-search or a restated prompt (category nlp-misparse — include missedConstraints). Subjective problems — OFFER first, send after the user agrees: results formally match but the user says they are wrong (wrong-results / user-dissatisfied); an empty result set that looks legitimate (empty-results). Always send when the user explicitly asks to report an issue, and always tell the user when a report was sent. Repair first, report second: feedback never replaces serving the user.`,
+    description,
     parameters: {
       type: "object",
       properties: {
