@@ -1,3 +1,4 @@
+import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Function to get enumerated values using the Repliers API.
  *
@@ -7,7 +8,7 @@
  * @returns {Promise<Object>} - The result of getting the enumerated values.
  */
 const executeFunction = async (args) => {
-  const baseUrl = "https://api.repliers.io";
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   let finalUrl; // Declare here to use in error handling
   
@@ -70,12 +71,7 @@ const apiTool = {
     type: "function",
     function: {
       name: "Lookup_Possible_Values",
-      description: `It's important that values passed into parameters when fetching statistics
-                    are valid. If they're not, for example if propertyType=tree house is specified and
-                    that's not a possible value for details.propertyType then the statistics will not have any results.
-                    The aggregates feature provides enumerated values to ensure accuracy in requests. Values that don't exist should never be used in statistics parameters.
-                    Best practice is to use this prior to getting statistics, so that you know what values to work with when structuring the statistics request.
-                    `,
+      description: `Returns the enumerated values this board actually uses for listing fields (via aggregates on /listings). Boards use exact vocabulary — e.g. 'Att/Row/Twnhouse', not 'Townhouse'. USE BEFORE: (1) refine-search calls that set propertyType/style — pass aggregates=details.propertyType,details.style and pick the exact string; (2) Market_Statistics requests, so filter values are valid (invalid values return empty statistics). Set listings=false to fetch only the value lists.`,
       parameters: {
         type: "object",
         properties: {

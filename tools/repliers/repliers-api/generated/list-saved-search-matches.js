@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /searches/{searchId}/matches (operationId: filter-matches)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/searches/{searchId}/matches';
@@ -48,7 +50,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-saved-search-matches",
-      description: "Use this endpoint to lookup matches for a saved search. Matches are listings that met the saved search criteria.",
+      description: "List listings matched against a saved search on the connected account. Use to show a client which new listings triggered their alert. Key params: searchId (required), liked, viewed, status, lastStatus, startDate, endDate, pageNum, resultsPerPage. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

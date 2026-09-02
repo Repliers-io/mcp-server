@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /nlp/chats (operationId: get_nlp_chats)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/nlp/chats`);
@@ -42,7 +44,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-nlp-chat-sessions",
-      description: "This endpoint allows you to list and filter all sessions. Each session has a unique nlpId and a session can have many prompts.\n",
+      description: "List NLP conversation sessions for a client on the connected account. Use to browse past AI-assisted chat sessions and their prompts. Key params: clientId, nlpId, resultsPerPage, pageNum, prompts. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

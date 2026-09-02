@@ -1,3 +1,4 @@
+import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Comprehensive Repliers API Listings Search Tool
  * Fixed version that properly handles map parameter and body/query separation
@@ -5,7 +6,7 @@
  */
 
 const executeFunction = async (args) => {
-  const baseUrl = "https://api.repliers.io";
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   // const defaultResultsPerPage = parseInt(process.env.RESULTS_PER_PAGE) || 20;
   let finalUrl;
@@ -1027,7 +1028,7 @@ Our Real Estate API offers a powerful feature that allows you to request real-ti
 Begin by defining the scope of the data you wish to analyze using the GET /listings endpoint. This scope is defined in the same way you would filter for listings. For example, if you want statistics for 4-bedroom homes in New York City that have sold in the past 2 years, your request URL will look like this:
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01
 \`\`\`
 
 ###### Important: Status Parameter for Statistics
@@ -1053,7 +1054,7 @@ When using our API, the \`status\` parameter defaults to 'A' (Active) if not spe
 To retrieve specific statistics, use the statistics parameter. For example, if you're interested in the average sold price, add &statistics=avg-soldPrice to your request. The full request URL would be:
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice
 \`\`\`
 
 This request will return all relevant listings along with a statistics object containing the average sold price:
@@ -1073,7 +1074,7 @@ This request will return all relevant listings along with a statistics object co
 If you do not need the listings and only require the statistics, add &listings=false to your request. This can significantly reduce response time. For instance:
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice&listings=false
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice&listings=false
 \`\`\`
 
 # Supported Statistics
@@ -1130,7 +1131,7 @@ Supported statistics enable comprehensive market analysis by providing both cent
 You can group statistics by different time periods to analyze trends. For example, to see how the average sold price has changed month-to-month over the past 2 years, add grp-mth as a comma-separated value to the statistics parameter:
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-mth&listings=false
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-mth&listings=false
 \`\`\`
 
 The response will include monthly data points:
@@ -1169,25 +1170,25 @@ The response will include monthly data points:
 ###### Multiple Groupings
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-mth,grp-yr&listings=false
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-mth,grp-yr&listings=false
 \`\`\`
 
 ###### Rolling Statistics
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-30-days&listings=false
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-30-days&listings=false
 \`\`\`
 
 # Requesting Multiple Statistics
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-daysOnMarket,avg-soldPrice,grp-mth&listings=false
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-daysOnMarket,avg-soldPrice,grp-mth&listings=false
 \`\`\`
 
 # Aggregating Statistics
 
 \`\`\`
-https://api.repliers.io/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-mth&listings=false&aggregateStatistics=true&aggregates=address.neighborhood
+${apiBaseUrl()}/listings?city=New York&minBeds=4&maxBeds=4&status=U&lastStatus=Sld&minSoldDate=2022-07-01&statistics=avg-soldPrice,grp-mth&listings=false&aggregateStatistics=true&aggregates=address.neighborhood
 \`\`\`
 
 \`\`\`json

@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: DELETE /estimates/{estimateId} (operationId: delete-an-estimate)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/estimates/{estimateId}';
@@ -38,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "delete-estimate",
-      description: "Deletes a specific property value estimate.",
+      description: "Delete a property value estimate from the connected account. Key params: estimateId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

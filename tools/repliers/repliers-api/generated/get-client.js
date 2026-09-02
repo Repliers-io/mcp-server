@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /clients/{clientId} (operationId: get-a-client)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/clients/{clientId}';
@@ -38,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-client",
-      description: "Returns the full profile of a specific client, including their contact information, preferences, and tags.",
+      description: "Fetch the full profile of a specific CRM client by clientId, including contact info, status, and tags. Key params: clientId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

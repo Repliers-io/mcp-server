@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /listings/{mlsNumber} (operationId: get-a-listing)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/listings/{mlsNumber}';
@@ -44,7 +46,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-listing",
-      description: "Use this endpoint to get details about a specific listing.\n\nWhen requesting a specific listing an expanded view of the listing is provided which includes comparables as well as the MLS history for the specific property. This is useful for building single property views within your app or website.",
+      description: "Fetch full details for a single listing by mlsNumber. Use to display a property detail page or retrieve all fields for one known listing. Key params: mlsNumber (required), boardId (required if multi-board account), fields, locations. NOT for browsing or searching — use Search_Listings.",
       parameters: {
         type: 'object',
         properties: {

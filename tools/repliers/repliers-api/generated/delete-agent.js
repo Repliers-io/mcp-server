@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: DELETE /agents/{agentId} (operationId: delete-an-agent)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/agents/{agentId}';
@@ -38,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "delete-agent",
-      description: "Use this endpoint to delete an agent. You must specify a new agentId to assign the deleted agent's clients to.",
+      description: "Delete a CRM agent record from the connected account. Requires specifying a replacement agentId to reassign the deleted agent's clients. Key params: agentId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

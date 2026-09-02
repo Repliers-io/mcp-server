@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /offices (operationId: offices)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/offices`);
@@ -40,7 +42,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-offices",
-      description: "Use this endpoint to list offices belonging to the MLS. A brokerage may have one or more offices.",
+      description: "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members. If results look wrong or incomplete — see send-feedback.",
       parameters: {
         type: 'object',
         properties: {

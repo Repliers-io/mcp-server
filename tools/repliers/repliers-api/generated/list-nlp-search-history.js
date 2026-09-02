@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /nlp (operationId: get_nlp)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/nlp`);
@@ -39,7 +41,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-nlp-search-history",
-      description: "This endpoint allows you to list and filter prompts across all sessions.\n",
+      description: "List past NLP search prompts submitted by a client on the connected account. Use to review a client's natural-language query history. Key params: clientId, nlpId. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

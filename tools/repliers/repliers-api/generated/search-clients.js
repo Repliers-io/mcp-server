@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /clients (operationId: search-clients)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/clients`);
@@ -52,7 +54,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-clients",
-      description: "Use this endpoint to get a list of clients that you've created. You can filter for specific clients using parameters like email address and first name. If you don't use any filters all clients will be returned.",
+      description: "List and filter CRM clients on the connected account. Use to find clients by name, email, phone, status, tags, or agentId. Key params: agentId, fname, lname, email, phone, status, tags, keywords, pageNum, resultsPerPage, showSavedSearches, externalId. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

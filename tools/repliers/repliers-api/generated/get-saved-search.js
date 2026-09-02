@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /searches/{searchId} (operationId: get-a-saved-search)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/searches/{searchId}';
@@ -38,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-saved-search",
-      description: "Returns the full details of a specific saved search, including its filter criteria and notification settings.",
+      description: "Fetch the full criteria and settings for a specific saved search by searchId. Use to display or verify a client's search before editing it. Key params: searchId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

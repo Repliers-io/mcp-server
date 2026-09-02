@@ -83,6 +83,10 @@ REPLIERS_API_KEY=your-repliers-api-key
 PORT=3001
 ```
 
+To run against a deployment other than production, add `REPLIERS_API_BASE_URL` (default
+`https://api.repliers.io`). It repoints every tool at once, generated and hand-written alike, and
+`refine-search`'s host check moves with it.
+
 **2. Start the server:**
 
 ```sh
@@ -251,3 +255,21 @@ Drop the file in `custom/` and it will be picked up automatically on the next se
 docker build -t repliers-mcp .
 docker run --env-file .env -p 3001:3001 repliers-mcp --sse
 ```
+
+---
+
+## Agent feedback & search reliability
+
+The server nudges agents to verify NLP search results and report problems (design:
+`docs/agent-feedback/design.md`).
+
+| Env var | Default | Effect |
+|---|---|---|
+| `TRELLO_API_KEY` / `TRELLO_API_TOKEN` / `TRELLO_LIST_ID` | unset | Feedback sink. All three set → the `send-feedback` tool is registered and `_feedback` nudges are emitted. Any missing → the tool is hidden and nudges are suppressed. |
+| `FEEDBACK_PROMPT_LEVEL` | `high` | `off` — no nudges; `low` — nudges only on detected problems (zero results, missing location filter, API errors, oversized responses); `high` — also a verify/offer note on every search response. |
+
+Note: `node index.js tools` does not load `.env`, so `send-feedback` may be absent from that CLI
+listing while still being served — check via a real MCP session.
+
+To obtain those three values, or to point the sink at a different Trello account, board or list, see
+[docs/agent-feedback/trello-setup.md](docs/agent-feedback/trello-setup.md).

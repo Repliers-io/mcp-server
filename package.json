@@ -5,17 +5,20 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "node mcpServer.js",
+    "start:http": "node mcpServer.js --http",
     "generate": "node codegen/generate.js",
-    "list-tools": "node index.js tools"
+    "list-tools": "node index.js tools",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.9.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "commander": "^13.1.0",
-    "dotenv": "^16.4.7",
-    "express": "^5.1.0"
+    "express": "5.2.1"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=v26.8.x",
+    "npm": ">=11.16.0"
   },
   "author": "",
   "license": "MIT"

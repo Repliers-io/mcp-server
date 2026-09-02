@@ -1,0 +1,25 @@
+{
+  "editor.tabSize": 2,
+  "editor.indentSize": 2,
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "prettier.singleQuote": false,
+  "[json]": {
+    "editor.formatOnSave": false,
+    "editor.tabSize": 2,
+    "editor.indentSize": 2
+  },
+  "files.associations": {
+    "*.config": "yaml"
+  },
+  "[yaml]": {
+    "editor.formatOnSave": false,
+    "editor.tabSize": 2,
+    "editor.indentSize": 2
+  },
+  "github.copilot.enable": {
+    "*": true,
+    "json": true
+  },
+  "git.addAICoAuthor": "off"
+}

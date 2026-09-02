@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: DELETE /searches/{searchId} (operationId: delete-a-saved-search)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/searches/{searchId}';
@@ -38,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "delete-saved-search",
-      description: "Deletes a saved search. The client will no longer receive notifications for this search.",
+      description: "Delete a saved search. The client will stop receiving notifications for this search. Key params: searchId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

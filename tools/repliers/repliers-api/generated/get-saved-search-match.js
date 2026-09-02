@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /searches/{searchId}/matches/{matchId} (operationId: get-a-match)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/searches/{searchId}/matches/{matchId}';
@@ -39,7 +41,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-saved-search-match",
-      description: "Returns the details of a specific listing match within a saved search, including the listing data and the match's viewed and liked status.",
+      description: "Fetch the details of a specific listing match within a saved search, including the full listing data and the client's liked/viewed status. Key params: searchId (required), matchId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

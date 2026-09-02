@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /messages (operationId: filter-messages)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/messages`);
@@ -48,7 +50,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "list-messages",
-      description: "Use this endpoint to list and filter sent messages.",
+      description: "List and filter agent↔client messages on the connected account. Use to view a conversation thread or audit communications. Key params: clientId, agentId, sender, status, startTime, endTime, pageNum, resultsPerPage. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

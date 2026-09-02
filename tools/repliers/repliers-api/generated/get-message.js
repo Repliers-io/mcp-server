@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /messages/{messageId} (operationId: get-a-message)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/messages/{messageId}';
@@ -38,7 +40,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-message",
-      description: "Use this endpoint to get details about a message that was sent.",
+      description: "Fetch details of a specific message by messageId on the connected account. Use to retrieve the full content and metadata of a sent message. Key params: messageId (required). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {

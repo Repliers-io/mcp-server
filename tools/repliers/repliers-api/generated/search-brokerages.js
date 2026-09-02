@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /brokerages (operationId: brokerages)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/brokerages`);
@@ -36,7 +38,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-brokerages",
-      description: "Returns a list of brokerages registered with the MLS. Useful for building brokerage directory pages or populating brokerage filter options in search interfaces.",
+      description: "List all brokerages registered with the MLS on the connected account. Use to build a brokerage directory or populate a brokerage filter dropdown. No filter params available — returns the full list. NOT for searching individual agents or offices — use search-members or search-offices. If results look wrong or incomplete — see send-feedback.",
       parameters: {
         type: 'object',
         properties: {},
