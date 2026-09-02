@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv";
 import express from "express";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -42,7 +41,7 @@ try {
 const envPath = path.resolve(__dirname, ".env");
 try {
   if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath });
+    process.loadEnvFile(envPath);
     console.error("[DEBUG] Environment loaded from", envPath);
   } else {
     console.error("[WARN] .env file not found at", envPath);

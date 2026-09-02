@@ -65,14 +65,15 @@ and the id of each list:
 
 ```sh
 node -e "
-import('dotenv').then(async d=>{d.default.config();
+process.loadEnvFile();
+(async()=>{
   const q=async p=>{const u=new URL('https://api.trello.com/1'+p);u.searchParams.set('key',process.env.TRELLO_API_KEY);u.searchParams.set('token',process.env.TRELLO_API_TOKEN);const r=await fetch(u);if(!r.ok){console.log('HTTP',r.status,(await r.text()).slice(0,120));return null}return r.json()};
   console.log('authenticated as:',(await q('/members/me?fields=username')).username);
   for(const b of (await q('/members/me/boards?fields=name&filter=open'))||[]){
     console.log('\n'+b.name);
     for(const l of (await q('/boards/'+b.id+'/lists?fields=name'))||[]) console.log('   ',l.id,l.name);
   }
-})"
+})()"
 ```
 
 **If the expected board is not listed, it is not necessarily missing.** `/members/me/boards` returns
@@ -81,13 +82,14 @@ the search before concluding the board does not exist:
 
 ```sh
 node -e "
-import('dotenv').then(async d=>{d.default.config();
+process.loadEnvFile();
+(async()=>{
   const q=async p=>{const u=new URL('https://api.trello.com/1'+p);u.searchParams.set('key',process.env.TRELLO_API_KEY);u.searchParams.set('token',process.env.TRELLO_API_TOKEN);const r=await fetch(u);return r.ok?r.json():null};
   for(const o of (await q('/members/me/organizations?fields=displayName'))||[]){
     console.log('\n=== '+o.displayName+' ===');
     for(const b of (await q('/organizations/'+o.id+'/boards?fields=name,closed'))||[]) console.log('   ',b.id,b.name,b.closed?'[closed]':'');
   }
-})"
+})()"
 ```
 
 Still nothing? Then the board belongs to a different Trello account — go back to step 1 and issue
@@ -118,7 +120,7 @@ process, at module import — an `.env` edit alone changes nothing until then.
 Confirm the mode before trusting it:
 
 ```sh
-node -e "import('dotenv').then(d=>{d.default.config();return import('./lib/trello.js')}).then(t=>console.log('dryRun',process.env.FEEDBACK_DRY_RUN==='true','/ configured',t.trelloConfigured()))"
+node -e "process.loadEnvFile();import('./lib/trello.js').then(t=>console.log('dryRun',process.env.FEEDBACK_DRY_RUN==='true','/ configured',t.trelloConfigured()))"
 ```
 
 ## Step 4 — prove it end to end, then clean up
@@ -128,11 +130,12 @@ step 1's `write` alone does not.
 
 ```sh
 node -e "
-import('dotenv').then(async d=>{d.default.config();
+process.loadEnvFile();
+(async()=>{
   const m=await import('./tools/repliers/repliers-api/custom/send-feedback.js');
   const r=await m.apiTool.function({category:'other',summary:'sink relocation check — delete me',userQuery:'test'});
   console.log(JSON.stringify(r.data));
-})"
+})()"
 ```
 
 Expect `{ok:true, cardUrl:...}` with **no** `dryRun` field, and the card in the intended list. Then
@@ -140,11 +143,12 @@ delete it:
 
 ```sh
 node -e "
-import('dotenv').then(async d=>{d.default.config();
+process.loadEnvFile();
+(async()=>{
   const u=new URL('https://api.trello.com/1/cards/<shortLink from cardUrl>');
   u.searchParams.set('key',process.env.TRELLO_API_KEY);u.searchParams.set('token',process.env.TRELLO_API_TOKEN);
   console.log((await fetch(u,{method:'DELETE'})).status);
-})"
+})()"
 ```
 
 For a fuller check — card fidelity, oversized payloads, the failure path, the roster gate — run

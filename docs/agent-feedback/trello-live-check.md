@@ -89,7 +89,7 @@ node mcpServer.js --http
 and the sanity check below prints `dryRun false / configured true`:
 
 ```sh
-node -e "import('dotenv').then(d=>{d.default.config();return import('./lib/trello.js')}).then(t=>console.log('dryRun',process.env.FEEDBACK_DRY_RUN==='true','/ configured',t.trelloConfigured()))"
+node -e "process.loadEnvFile();import('./lib/trello.js').then(t=>console.log('dryRun',process.env.FEEDBACK_DRY_RUN==='true','/ configured',t.trelloConfigured()))"
 ```
 
 > **Blocker if it fails:** HEAD currently does not load — `lib/serverInstructions.js` imports
@@ -107,7 +107,8 @@ itself so a failure points at `createCard`, not at the transport.
 
 ```sh
 node -e "
-import('dotenv').then(d=>{d.default.config();return import('./tools/repliers/repliers-api/custom/send-feedback.js')}).then(async m=>{
+process.loadEnvFile();
+import('./tools/repliers/repliers-api/custom/send-feedback.js').then(async m=>{
   const r = await m.apiTool.function({
     category: 'nlp-misparse',
     summary: 'test card — ignore',
@@ -135,7 +136,8 @@ import('dotenv').then(d=>{d.default.config();return import('./tools/repliers/rep
 
 ```sh
 node -e "
-import('dotenv').then(d=>{d.default.config();return Promise.all([import('./lib/feedbackCard.js'),Promise.resolve()])}).then(async ([fc])=>{
+process.loadEnvFile();
+Promise.all([import('./lib/feedbackCard.js'),Promise.resolve()]).then(async ([fc])=>{
   const expected = fc.buildFeedbackCard({
     category:'nlp-misparse', summary:'test card — ignore', userQuery:'test',
     missedConstraints:[{constraint:'maxPrice',requested:'500000',applied:'none'}],
@@ -178,7 +180,8 @@ defect to file against both.
 
 ```sh
 node -e "
-import('dotenv').then(d=>{d.default.config();return import('./tools/repliers/repliers-api/custom/send-feedback.js')}).then(async m=>{
+process.loadEnvFile();
+import('./tools/repliers/repliers-api/custom/send-feedback.js').then(async m=>{
   const filler = 'x'.repeat(400);
   const toolCalls = Array.from({length: 40}, (_,i) => ({
     tool: 'Search_Listings', params: { prompt: 'condos in Mississauga under 600k '+i },
@@ -207,7 +210,9 @@ fix is to move `name`/`desc` from the query string into a POST body in
 
 ```sh
 node -e "
-import('dotenv').then(d=>{d.default.config();process.env.TRELLO_API_TOKEN='deadbeef';return import('./tools/repliers/repliers-api/custom/send-feedback.js')}).then(async m=>{
+process.loadEnvFile();
+process.env.TRELLO_API_TOKEN='deadbeef';
+import('./tools/repliers/repliers-api/custom/send-feedback.js').then(async m=>{
   const r = await m.apiTool.function({category:'api-error',summary:'auth failure probe',userQuery:'test'});
   console.log(JSON.stringify(r, null, 2));
 })"
@@ -224,7 +229,7 @@ import('dotenv').then(d=>{d.default.config();process.env.TRELLO_API_TOKEN='deadb
 - [ ] **6.2 Invalid category** (guard before any network call):
 
 ```sh
-node -e "import('dotenv').then(d=>{d.default.config();return import('./tools/repliers/repliers-api/custom/send-feedback.js')}).then(async m=>console.log(await m.apiTool.function({category:'banana',summary:'s',userQuery:'q'})))"
+node -e "process.loadEnvFile();import('./tools/repliers/repliers-api/custom/send-feedback.js').then(async m=>console.log(await m.apiTool.function({category:'banana',summary:'s',userQuery:'q'})))"
 ```
 
 **PASS 6.2:** `{ error: 'category must be one of: …' }`, and no card appears in Trello.
