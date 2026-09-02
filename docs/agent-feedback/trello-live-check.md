@@ -408,6 +408,30 @@ moves `idList`/`name`/`desc` into a JSON body, leaving only `key`/`token` in the
 ([lib/trello.js](../../lib/trello.js)); `test/trello.test.js` gained a regression test asserting a
 16 KB description keeps the URL under 500 chars.
 
+**Consent mode (`FEEDBACK_CONSENT=always-ask`) verified end to end, 2026-09-02.** Two `--resume`
+pairs against the live board, all three channels switched together (rule 3 consent-first, tool
+description opening `CONSENT REQUIRED`, api-error nudge asking first):
+
+| Pair | Turn 1 | Turn 2 | Cards |
+|---|---|---|---|
+| Consent | agent repaired, explained, **asked** | "yes, please report it" | 7 → 8, `/c/czYbE80S` |
+| Decline | asked again | "no, please don't report it" | 8 → 8, and no nagging |
+
+**Known false-report pattern, found by the decline pair.** In turn 1 the agent had concluded that
+`minBeds` was "a silent correctness bug" and intended to file it. It is not: `minBeds` counts
+`numBedrooms + numBedroomsPlus` — of the first 100 rows of `?minBeds=5`, 76 have fewer than 5 main
+bedrooms and every one of them reaches 5 with the plus count ("4+1", "4+3"), which is exactly what
+TRREB markets as a five-bedroom home. The agent's "repair" to `minBedrooms` would have silently
+dropped those listings, and it announced it would apply that correction to every later search. The
+refusal stopped a wrong ticket; in `auto` it would have been filed unattended.
+
+Do **not** encode this in a tool description or the instructions. The specific fact is perishable —
+upstream intends to reconcile the parameter — and a hand-written guard cannot self-correct the way
+the data-derived `unrecognized` check does. The structural half is what to watch: `refined` makes a
+report mandatory after every refine, with no step asking the agent to establish that the original
+filter was actually wrong. If the pattern recurs on another parameter after the upstream fix, that
+missing step is the thing to design, not another prose guard.
+
 **The same defect exists in portal-backend.** Task B2 of
 `portal-monorepo/docs/superpowers/plans/2026-07-14-ai-chat-feedback.md` specifies
 `axios.post("https://api.trello.com/1/cards", null, { params })` — the identical query-string
