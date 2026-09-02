@@ -42,7 +42,26 @@ If you also need a fresh key: https://trello.com/apps/admin → create a Power-U
 
 ## Step 2 — find the board and the list id
 
-With the new token in `.env`, this prints every board the token can see and the id of each list:
+**The Trello UI does not display list ids anywhere** — there is no "copy id" in the list menu, and
+no direct list URL. Every documented route is a workaround. Two of them need no credentials at all,
+which matters when whoever configures the server is not the person holding the token.
+
+**From the browser, logged into Trello (no key or token required):**
+
+```
+https://trello.com/b/<boardShortLink>.json     ← the whole board
+https://trello.com/c/<cardShortLink>.json      ← one card; read its idList
+```
+
+The browser authenticates with its session cookie. `Ctrl+F` for the column name; the `"id"` just
+above it is the list id. The card variant is far smaller and is the quicker route whenever the
+column already holds a card. Pure-clicks equivalent, same payload: board menu → the print/export
+section → **Export as JSON**.
+
+`<boardShortLink>` is the segment in the board URL: `https://trello.com/b/<shortLink>/<name>`.
+
+**From the command line, once a key and token exist** — this prints every board the token can see
+and the id of each list:
 
 ```sh
 node -e "
