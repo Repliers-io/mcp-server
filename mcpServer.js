@@ -325,6 +325,11 @@ async function run() {
         }
       }
 
+      // OpenAI Apps domain verification challenge
+      app.get("/.well-known/openai-apps-challenge", (_req, res) => {
+        res.status(200).type("text/plain").send("YsKHt1Ih_SwBJkUoRWkn961DW7BjOM3qTlXz2Oub5pg");
+      });
+
       // OpenID Connect Discovery endpoint (more standard than OAuth-specific)
       app.get("/.well-known/openid-configuration", (_req, res) => {
         console.error("[DEBUG] OpenID Connect discovery endpoint called");
