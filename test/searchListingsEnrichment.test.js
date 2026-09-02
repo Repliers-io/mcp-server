@@ -24,6 +24,22 @@ test("response leads with appliedFilters and complexQuery=false for GET queries"
   assert.equal(result.data.complexQuery, false);
 });
 
+// /nlp answers `unrecognizedParams: []` even for URLs /listings rejects, so the URL check is the
+// only thing standing between the agent and a filter that silently did nothing.
+test("a param the API discards is reported under appliedFilters.unrecognized", async () => {
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      request: { url: "https://api.repliers.io/listings?class=condo&minBathrooms=2", summary: "s" },
+      nlpId: "id-1",
+      listings: { count: 15273, listings: [], unrecognizedParams: [] },
+    }),
+  });
+  const result = await apiTool.function({ prompt: "condos with 2 bathrooms", _repliersApiKey: "k" });
+  assert.deepEqual(result.data.appliedFilters.unrecognized, ["minBathrooms"]);
+  assert.deepEqual(result.data.appliedFilters.other, {});
+});
+
 test("complexQuery=true when NLP built a POST body with queries", async () => {
   global.fetch = async () => nlpResponse({ queries: [{ propertyType: "Condo" }] });
   const result = await apiTool.function({ prompt: "condos or lofts", _repliersApiKey: "k" });
@@ -47,6 +63,12 @@ test("computed keys win over appliedFilters/complexQuery present in the NLP payl
   assert.equal(typeof result.data.appliedFilters, "object");
   assert.equal(result.data.appliedFilters.bedrooms, "minBeds=5");
   assert.equal(result.data.complexQuery, false);
+});
+
+test("tool description tells the agent that unrecognized params were not searched", () => {
+  const description = apiTool.definition.function.description;
+  assert.match(description, /unrecognized/);
+  assert.match(description, /NOT searched/i);
 });
 
 test("prompt description forbids inventing a parent location and says why", async () => {

@@ -32,7 +32,7 @@ test("trelloConfigured true only when all three env vars set", () => {
   assert.equal(trelloConfigured(), false);
 });
 
-test("createCard posts query params and returns shortUrl", async () => {
+test("createCard posts to the cards endpoint with credentials in the query", async () => {
   const calls = [];
   global.fetch = async (url, init) => {
     calls.push({ url: String(url), method: init.method });
@@ -43,8 +43,32 @@ test("createCard posts query params and returns shortUrl", async () => {
   const sent = new URL(calls[0].url);
   assert.equal(calls[0].method, "POST");
   assert.equal(sent.origin + sent.pathname, "https://api.trello.com/1/cards");
-  assert.equal(sent.searchParams.get("idList"), "test-list");
-  assert.equal(sent.searchParams.get("name"), "card name");
+  assert.equal(sent.searchParams.get("key"), "test-key");
+  assert.equal(sent.searchParams.get("token"), "test-token");
+});
+
+// Trello rejects request URLs past ~8 KB with 414, but buildFeedbackCard caps desc at 16 KB —
+// twice the transport limit. Card content therefore has to travel in the body, not the query.
+test("createCard sends card content in the body, so a 16k description still fits", async () => {
+  const calls = [];
+  global.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return { ok: true, json: async () => ({ shortUrl: "https://trello.com/c/abc" }) };
+  };
+  const desc = "y".repeat(16384);
+  const result = await createCard({ name: "card name", desc });
+  assert.deepEqual(result, { ok: true, cardUrl: "https://trello.com/c/abc" });
+
+  const sent = new URL(calls[0].url);
+  assert.ok(sent.toString().length < 500, `URL must stay short, was ${sent.toString().length}`);
+  assert.equal(sent.searchParams.get("name"), null);
+  assert.equal(sent.searchParams.get("desc"), null);
+
+  const body = JSON.parse(calls[0].init.body);
+  assert.equal(body.idList, "test-list");
+  assert.equal(body.name, "card name");
+  assert.equal(body.desc, desc);
+  assert.match(calls[0].init.headers["content-type"], /application\/json/);
 });
 
 test("dry-run: channel configured without keys, card logged instead of posted", async () => {

@@ -49,7 +49,9 @@ const executeFunction = async (args) => {
     return {
       url: finalUrl,
       data: {
-        appliedFilters: requestUrl ? parseAppliedFilters(requestUrl) : null,
+        appliedFilters: requestUrl
+          ? parseAppliedFilters(requestUrl, data.listings?.unrecognizedParams)
+          : null,
         complexQuery: Boolean(data.request?.body?.queries),
         ...rest,
       },
@@ -73,7 +75,7 @@ const apiTool = {
     type: "function",
     function: {
       name: "Search_Listings",
-      description: `Natural-language listings search — the entry point for ALL new property searches. Pass the user's request as a plain-English prompt (translate if needed); the NLP engine converts it into API filters and returns listings. RESPONSE CONTRACT: appliedFilters (leading block) shows which filters were ACTUALLY applied, family by family (location, propertyType, style, priceRange, bedrooms…— null means not applied); complexQuery=true means a multi-query union search that refine-search cannot patch; nlpId correlates with server logs — include it in send-feedback reports. ALWAYS verify appliedFilters against the user's request before presenting results: the parser sometimes drops or substitutes constraints. Missing/wrong basic filter → fix via refine-search; dropped semantic constraint → re-run with it restated emphatically; then report via send-feedback (nlp-misparse). If results look wrong or incomplete — see send-feedback.`,
+      description: `Natural-language listings search — the entry point for ALL new property searches. Pass the user's request as a plain-English prompt (translate if needed); the NLP engine converts it into API filters and returns listings. RESPONSE CONTRACT: appliedFilters (leading block) shows which filters were ACTUALLY applied, family by family (location, propertyType, style, priceRange, bedrooms…— null means not applied); appliedFilters.unrecognized lists parameters the API discarded — a constraint named there was NOT searched however convincing the rest of the block looks, so treat it exactly like a dropped constraint: repair it (correct parameter name via refine-search) and report it; complexQuery=true means a multi-query union search that refine-search cannot patch; nlpId correlates with server logs — include it in send-feedback reports. ALWAYS verify appliedFilters against the user's request before presenting results: the parser sometimes drops or substitutes constraints. Missing/wrong basic filter → fix via refine-search; dropped semantic constraint → re-run with it restated emphatically; then report via send-feedback (nlp-misparse). If results look wrong or incomplete — see send-feedback.`,
       parameters: {
         type: "object",
         properties: {

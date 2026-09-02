@@ -20,7 +20,7 @@ npm run generate             # regenerate tools/…/generated/ from openapi.json
 | `lib/tools.js` | `discoverTools()` — loads every `.js` from `tools/repliers/repliers-api/{generated,custom}/` exporting `apiTool` |
 | `tools/repliers/repliers-api/generated/` | 39 tools generated from `openapi.json` (`npm run generate`) — CRM, estimates, locations, saved searches… Do not edit by hand |
 | `tools/repliers/repliers-api/custom/` | 6 hand-written tools: `search-listings` (NLP search + `appliedFilters` enrichment), `refine-search`, `send-feedback`, `statistics`, `get-parameter-enumerations`, `get-listing-image` |
-| `lib/appliedFilters.js` | Parses the NLP-built listing URL into the human-readable `appliedFilters` summary |
+| `lib/appliedFilters.js` | Parses the NLP-built listing URL into the human-readable `appliedFilters` summary, and flags params the API discards in `appliedFilters.unrecognized` (checked against the `/listings` parameter set in `openapi.json`, read lazily — `/nlp` reports `unrecognizedParams: []` even when `/listings` rejects the param) |
 | `lib/feedbackHints.js` | Failure detectors (no-location-filter, zero-results, api-error…) + eagerness levels → `_feedback` block |
 | `lib/feedbackCard.js`, `lib/trello.js` | Feedback card formatting + Trello REST delivery |
 | `test/` | Unit tests (`node:test`), one file per lib/tool module |

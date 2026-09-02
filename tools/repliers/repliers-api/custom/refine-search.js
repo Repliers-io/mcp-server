@@ -57,7 +57,7 @@ const executeFunction = async (args) => {
     return {
       url: finalUrl,
       constraintPatch,
-      data: { appliedFilters: parseAppliedFilters(finalUrl), ...data },
+      data: { appliedFilters: parseAppliedFilters(finalUrl, data.unrecognizedParams), ...data },
     };
   } catch (error) {
     return { error: "refine-search request failed.", details: error.message, url: finalUrl };
