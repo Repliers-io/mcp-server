@@ -28,31 +28,11 @@ The three values go into `.env`. Nothing else in this document can run without t
   cards on purpose; they must not land in the triage list. After acceptance, switching to the real
   list is one line in `.env`.
 
-- [ ] **0.2 API key.** If `portal-backend/.env` already carries `TRELLO_API_KEY` /
-  `TRELLO_API_TOKEN` (task B2 of the plan above defined them), **reuse those values** — same
-  account, same board, nothing to issue. Otherwise: https://trello.com/apps/admin → create a
-  Power-Up → **API Key** tab → generate. This is `TRELLO_API_KEY`.
-
-- [ ] **0.3 Token.** On the same page follow the manual token link, or open:
-
-```
-https://trello.com/1/authorize?expiration=never&scope=read,write&response_type=token&name=Repliers%20MCP&key=<API_KEY>
-```
-
-  Approve → the page shows the token. This is `TRELLO_API_TOKEN`. `write` scope is required to
-  create cards; `read` is required by T2 (reading the card back) — a reused portal token was issued
-  for writing, so if T2 comes back `401 invalid token` while T1 succeeded, the token lacks `read`
-  and must be reissued with `scope=read,write`.
-
-- [ ] **0.4 List ID.** With the key and token in hand:
-
-```sh
-curl -s "https://api.trello.com/1/boards/<boardShortLink>/lists?key=<KEY>&token=<TOKEN>" \
-  | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>JSON.parse(s).forEach(l=>console.log(l.id,l.name)))"
-```
-
-  `<boardShortLink>` is the segment in the board URL: `https://trello.com/b/<shortLink>/<name>`.
-  The 24-hex id of the `Inbox` row is `TRELLO_LIST_ID`.
+- [ ] **0.2 Credentials.** Follow [trello-setup.md](./trello-setup.md) steps 1–3 — issuing a token
+  for the right account, finding the list id, and the `FEEDBACK_DRY_RUN` / restart traps live there
+  so they stay in one place. Note for this procedure specifically: the token needs `read` as well as
+  `write`, because T2 reads the card back. If T2 returns `401 invalid token` while T1 succeeded, the
+  token was issued `write`-only and must be reissued with `scope=read,write`.
 
 **PASS 0:** three values collected, none of them pasted into a file that is not `.env`
 (`.env` is gitignored — verify with `git check-ignore -v .env`).

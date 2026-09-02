@@ -266,3 +266,6 @@ The server nudges agents to verify NLP search results and report problems (desig
 
 Note: `node index.js tools` does not load `.env`, so `send-feedback` may be absent from that CLI
 listing while still being served — check via a real MCP session.
+
+To obtain those three values, or to point the sink at a different Trello account, board or list, see
+[docs/agent-feedback/trello-setup.md](docs/agent-feedback/trello-setup.md).
