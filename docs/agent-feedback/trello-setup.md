@@ -138,8 +138,9 @@ process.loadEnvFile();
 })()"
 ```
 
-Expect `{ok:true, cardUrl:...}` with **no** `dryRun` field, and the card in the intended list. Then
-delete it:
+Expect `{ok:true}` with **no** `dryRun` field, and the card in the intended list. The card's URL is
+not in the tool result by design — the server prints it to stderr as `[feedback] card created: …`,
+which is where you read it when running this by hand. Then delete it:
 
 ```sh
 node -e "

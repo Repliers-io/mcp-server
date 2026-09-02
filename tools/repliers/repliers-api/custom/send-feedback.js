@@ -11,7 +11,11 @@ const executeFunction = async (args) => {
     return { error: `category must be one of: ${categories.join(", ")}` };
   }
   const card = buildFeedbackCard(args);
-  const result = await createCard(card);
+  const { cardUrl, ...result } = await createCard(card);
+  // The card lands on an internal triage board the end user has no access to. An agent given the
+  // link relays it as proof the report went through, leaving a dead link in a conversation about
+  // property. Operators get it on stderr; the agent gets a plain acknowledgement.
+  if (cardUrl) console.error(`[feedback] card created: ${cardUrl}`);
   return { url: "https://api.trello.com/1/cards", data: result };
 };
 

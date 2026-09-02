@@ -33,13 +33,26 @@ test("tool is exported when Trello env present and rejects bad category", async 
   assert.match(bad.error, /category/);
 });
 
-test("valid call posts a card and returns ok + cardUrl", async () => {
+// The card sits on an internal triage board. The person in the conversation cannot open it, and an
+// agent handed a link treats it as proof and relays it — so the link must not reach the agent.
+test("valid call posts a card and returns ok, with no link to the triage board", async () => {
   global.fetch = async () => ({ ok: true, json: async () => ({ shortUrl: "https://trello.com/c/x" }) });
   const { apiTool } = await load();
   const result = await apiTool.function({
     category: "nlp-misparse", summary: "price dropped", userQuery: "under 500k",
   });
-  assert.deepEqual(result.data, { ok: true, cardUrl: "https://trello.com/c/x" });
+  assert.deepEqual(result.data, { ok: true });
+  assert.doesNotMatch(JSON.stringify(result), /trello\.com\/c\//);
+});
+
+test("a failed send still tells the agent it failed", async () => {
+  global.fetch = async () => ({ ok: false, status: 401 });
+  const { apiTool } = await load();
+  const result = await apiTool.function({
+    category: "api-error", summary: "s", userQuery: "q",
+  });
+  assert.equal(result.data.ok, false);
+  assert.match(result.data.error, /401/);
 });
 
 test("apiTool is null when Trello env is missing", async () => {

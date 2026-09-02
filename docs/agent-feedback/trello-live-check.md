@@ -120,7 +120,9 @@ import('./tools/repliers/repliers-api/custom/send-feedback.js').then(async m=>{
 ```
 
 **PASS T1:**
-- result is `{ url: 'https://api.trello.com/1/cards', data: { ok: true, cardUrl: 'https://trello.com/c/...' } }`;
+- result is `{ url: 'https://api.trello.com/1/cards', data: { ok: true } }` — **no `cardUrl`**: the
+  link would be relayed to an end user who cannot open it, so it goes to the server's stderr as
+  `[feedback] card created: <url>` instead. Read it there, or find the card in the list;
 - `data.dryRun` is **absent** (its presence means dry-run is still on — go back to 2.2);
 - the card exists in the `Inbox` list, titled `[MCP] 🧩 test card — ignore` — with the emoji
   rendered, not `??` or mojibake;
