@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: PATCH /estimates/{estimateId} (operationId: create-an-estimate-copy)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/estimates/{estimateId}';

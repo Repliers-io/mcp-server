@@ -1,3 +1,4 @@
+import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Function to get enumerated values using the Repliers API.
  *
@@ -7,7 +8,7 @@
  * @returns {Promise<Object>} - The result of getting the enumerated values.
  */
 const executeFunction = async (args) => {
-  const baseUrl = "https://api.repliers.io";
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   let finalUrl; // Declare here to use in error handling
   

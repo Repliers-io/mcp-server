@@ -2,6 +2,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { defaultApiBaseUrl } from '../lib/apiBase.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -23,7 +24,13 @@ if (!existsSync(specPath)) {
 }
 
 const spec = JSON.parse(readFileSync(specPath, 'utf-8'));
-const baseUrl = (spec.servers?.[0]?.url || 'https://api.repliers.io').replace(/\/$/, '');
+// The host is no longer baked into generated tools — lib/apiBase.js resolves it at runtime so
+// REPLIERS_API_BASE_URL can repoint the whole roster at a staging deployment. The spec's value is
+// still read, purely to shout if it ever diverges from that module's default.
+const specBaseUrl = (spec.servers?.[0]?.url || defaultApiBaseUrl).replace(/\/$/, '');
+if (specBaseUrl !== defaultApiBaseUrl) {
+  console.warn(`[WARN] openapi.json declares ${specBaseUrl} but lib/apiBase.js defaults to ${defaultApiBaseUrl} — update the module default.`);
+}
 
 // Ensure output directory exists
 const outputDir = resolve(root, config.outputDir);
@@ -206,8 +213,10 @@ function generateToolFile(method, urlPath, operation, spec, override, docText) {
   return `// AUTO-GENERATED — run \`npm run generate\` to regenerate
 // Source: ${method.toUpperCase()} ${urlPath} (operationId: ${operationId})
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = '${baseUrl}';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
 ${urlLines}${bodyLines}

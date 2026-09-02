@@ -83,6 +83,10 @@ REPLIERS_API_KEY=your-repliers-api-key
 PORT=3001
 ```
 
+To run against a deployment other than production, add `REPLIERS_API_BASE_URL` (default
+`https://api.repliers.io`). It repoints every tool at once, generated and hand-written alike, and
+`refine-search`'s host check moves with it.
+
 **2. Start the server:**
 
 ```sh

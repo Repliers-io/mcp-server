@@ -14,6 +14,7 @@ import {
 import { discoverTools, toolAnnotations } from "./lib/tools.js";
 import { augmentResult } from "./lib/feedbackHints.js";
 import { buildServerInstructions } from "./lib/serverInstructions.js";
+import { apiBaseUrl } from "./lib/apiBase.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -182,7 +183,7 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
 
       augmentResult(toolName, result);
 
-      const apiEndpoint = result.url || `https://api.repliers.io/${toolName}`;
+      const apiEndpoint = result.url || `${apiBaseUrl()}/${toolName}`;
 
       return {
         content: [
@@ -204,7 +205,7 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
         ],
       };
     } catch (error) {
-      const apiEndpoint = `https://api.repliers.io/${toolName}`;
+      const apiEndpoint = `${apiBaseUrl()}/${toolName}`;
 
       return {
         content: [

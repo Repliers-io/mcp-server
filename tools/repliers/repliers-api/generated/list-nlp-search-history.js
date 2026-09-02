@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: GET /nlp (operationId: get_nlp)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/nlp`);

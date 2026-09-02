@@ -20,6 +20,7 @@ npm run generate             # regenerate tools/…/generated/ from openapi.json
 | `lib/tools.js` | `discoverTools()` — loads every `.js` from `tools/repliers/repliers-api/{generated,custom}/` exporting `apiTool` |
 | `tools/repliers/repliers-api/generated/` | 39 tools generated from `openapi.json` (`npm run generate`) — CRM, estimates, locations, saved searches… Do not edit by hand |
 | `tools/repliers/repliers-api/custom/` | 6 hand-written tools: `search-listings` (NLP search + `appliedFilters` enrichment), `refine-search`, `send-feedback`, `statistics`, `get-parameter-enumerations`, `get-listing-image` |
+| `lib/apiBase.js` | `apiBaseUrl()` / `apiOrigin()` — the only place the API host is written. Generated tools import it (the codegen template emits the call, so regeneration preserves it); never hardcode the host anywhere else |
 | `lib/appliedFilters.js` | Parses the NLP-built listing URL into the human-readable `appliedFilters` summary, and flags params the API discards in `appliedFilters.unrecognized` (checked against the `/listings` parameter set in `openapi.json`, read lazily — `/nlp` reports `unrecognizedParams: []` even when `/listings` rejects the param) |
 | `lib/feedbackHints.js` | Failure detectors (no-location-filter, zero-results, api-error…) + eagerness levels → `_feedback` block |
 | `lib/feedbackCard.js`, `lib/trello.js` | Feedback card formatting + Trello REST delivery |
@@ -30,6 +31,7 @@ npm run generate             # regenerate tools/…/generated/ from openapi.json
 | Var | Role |
 |---|---|
 | `REPLIERS_API_KEY` | Required. Demo key dataset = Ontario, Canada (TRREB vocabulary: townhouse = `Att/Row/Twnhouse`; Miami absent) |
+| `REPLIERS_API_BASE_URL` | API host for **every** tool, generated and custom (default `https://api.repliers.io`). Points the whole roster at a staging deployment; `refine-search`'s host check follows it, so a production URL is foreign there |
 | `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `TRELLO_LIST_ID` | Feedback intake. **Gate**: without them `send-feedback` is absent from the roster and from instructions/nudges. Obtaining them / switching account or board: [docs/agent-feedback/trello-setup.md](docs/agent-feedback/trello-setup.md) |
 | `FEEDBACK_DRY_RUN` | `true` = feedback channel acts configured without Trello keys; cards are dumped to server stderr instead of posted (testing mode) |
 | `FEEDBACK_DRY_RUN_LOG` | Path the dry-run cards are mirrored to; defaults to `feedback-cards.log` in the repo root (gitignored) |

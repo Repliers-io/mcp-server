@@ -1,8 +1,10 @@
 // AUTO-GENERATED — run `npm run generate` to regenerate
 // Source: PATCH /searches/{searchId}/matches/{matchId} (operationId: update-a-match)
 
+import { apiBaseUrl } from '../../../../lib/apiBase.js';
+
 const executeFunction = async (args) => {
-  const baseUrl = 'https://api.repliers.io';
+  const baseUrl = apiBaseUrl();
   const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/searches/{searchId}/matches/{matchId}';

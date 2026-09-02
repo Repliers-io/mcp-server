@@ -1,3 +1,4 @@
+import { apiBaseUrl, apiOrigin } from "../../../../lib/apiBase.js";
 import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
 
 // Curated allowlist — openapi.json POST /listings names. Only these are ever
@@ -28,8 +29,10 @@ const executeFunction = async (args) => {
   } catch {
     return { error: "url must be a valid request.url from a previous Search_Listings response." };
   }
-  if (url.origin !== "https://api.repliers.io" || !url.pathname.startsWith("/listings")) {
-    return { error: "url must point at https://api.repliers.io/listings — pass request.url from the Search_Listings response." };
+  // Tied to the configured deployment, not a literal: on a staging host the production origin is
+  // as foreign as any other, and a hardcoded check would reject the very URL Search_Listings built.
+  if (url.origin !== apiOrigin() || !url.pathname.startsWith("/listings")) {
+    return { error: `url must point at ${apiBaseUrl()}/listings — pass request.url from the Search_Listings response.` };
   }
   for (const name of patchParams) {
     const value = args[name];

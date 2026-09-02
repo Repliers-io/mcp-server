@@ -12,6 +12,32 @@ test("rejects foreign hosts and garbage urls", async () => {
   assert.match((await apiTool.function({ url: "not a url" })).error, /valid/);
 });
 
+// The host check has to move with REPLIERS_API_BASE_URL. Pinned to a literal it would reject the
+// very URL Search_Listings just built on a staging deployment, taking refine-search offline there.
+test("the accepted host follows REPLIERS_API_BASE_URL", async () => {
+  const real = process.env.REPLIERS_API_BASE_URL;
+  process.env.REPLIERS_API_BASE_URL = "https://staging.repliers.io";
+  try {
+    let fetched;
+    global.fetch = async (url) => {
+      fetched = new URL(String(url));
+      return { ok: true, json: async () => ({ count: 1, listings: [] }) };
+    };
+    const ok = await apiTool.function({
+      url: "https://staging.repliers.io/listings?minBeds=5", maxPrice: 400000, _repliersApiKey: "k",
+    });
+    assert.equal(ok.error, undefined, "a URL on the configured host must be accepted");
+    assert.equal(fetched.origin, "https://staging.repliers.io");
+
+    const rejected = await apiTool.function({ url: "https://api.repliers.io/listings?minBeds=5" });
+    assert.match(rejected.error, /staging\.repliers\.io/,
+      "with staging configured, the production host is as foreign as any other");
+  } finally {
+    if (real === undefined) delete process.env.REPLIERS_API_BASE_URL;
+    else process.env.REPLIERS_API_BASE_URL = real;
+  }
+});
+
 test("patches named params, preserves everything else verbatim, removes aliases", async () => {
   let fetched;
   global.fetch = async (url) => {
