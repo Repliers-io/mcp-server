@@ -241,7 +241,7 @@ async function run() {
       const app = express();
       app.use(express.json());
 
-      const sessions = {}; // sessionId -> { transport, server }
+      const sessions = {}; // sessionId -> { transport, server, userId }
 
       // OAuth token verification middleware using UserInfo endpoint
       async function verifyOAuthToken(req, res, next) {
@@ -422,10 +422,20 @@ async function run() {
         try {
           const sessionId = req.headers['mcp-session-id'];
 
-          // Route existing sessions directly
+          // Route existing sessions directly. A session id is a client-supplied
+          // header, so it never stands in for identity: the caller proven by
+          // verifyOAuthToken must also be the user the session was opened for,
+          // otherwise any authenticated user could drive another user's session
+          // and spend their Repliers API key. Mismatches answer 404 rather than
+          // 403 so the endpoint cannot be used to probe which session ids exist.
           if (sessionId) {
             const session = sessions[sessionId];
-            if (!session) {
+            if (!session || (!selfHosted && session.userId !== req.user.id)) {
+              if (session) {
+                console.error(
+                  `[WARN] Session ownership mismatch: ${sessionId} is owned by ${session.userId}, requested by ${req.user.id}`
+                );
+              }
               return res.status(404).json({ error: "Session not found" });
             }
             await session.transport.handleRequest(req, res, req.body);
@@ -438,7 +448,8 @@ async function run() {
           }
 
           const repliersApiKey = selfHosted ? process.env.REPLIERS_API_KEY : req.user.repliersApiKey;
-          console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${req.user.id}`}`);
+          const sessionUserId = selfHosted ? null : req.user.id;
+          console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${sessionUserId}`}`);
 
           const server = new Server(
             { name: SERVER_NAME, version: "0.1.0" },
@@ -452,8 +463,8 @@ async function run() {
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
             onsessioninitialized: (sid) => {
-              sessions[sid] = { transport, server };
-              console.error(`[DEBUG] Session initialized: ${sid}`);
+              sessions[sid] = { transport, server, userId: sessionUserId };
+              console.error(`[DEBUG] Session initialized: ${sid}${selfHosted ? '' : ` (owner: ${sessionUserId})`}`);
             },
             onsessionclosed: (sid) => {
               delete sessions[sid];
