@@ -132,7 +132,7 @@ async function transformTools(tools) {
     .filter(Boolean);
 }
 
-async function setupServerHandlers(server, tools, repliersApiKey) {
+async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
 
   // List tools handler
@@ -140,8 +140,8 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
     tools: await transformTools(tools),
   }));
 
-  // Call tool handler - FIXED VERSION
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  // Call tool handler
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const toolName = request.params.name;
     console.error(`[DEBUG] Tool call requested: ${toolName}`);
 
@@ -165,6 +165,14 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
         );
       }
     }
+
+    // The Repliers key is resolved per request, from the identity verifyOAuthToken proved
+    // for this very call, rather than captured when the session was opened. A key that is
+    // rotated or revoked upstream therefore takes effect on the next call instead of living
+    // on for the lifetime of the session. Absent in self-hosted and stdio mode, where there
+    // is no per-user identity and the environment key is the only one.
+    const repliersApiKey =
+      extra?.authInfo?.extra?.repliersApiKey ?? process.env.REPLIERS_API_KEY;
 
     try {
       const result = await tool.function({ ...args, _repliersApiKey: repliersApiKey });
@@ -314,6 +322,15 @@ async function run() {
             if (!process.env.PROPELAUTH_API_KEY) console.error('[DEBUG] PROPELAUTH_API_KEY not set, skipping org metadata fetch');
           }
 
+          // Handed to the transport per request: the SDK surfaces req.auth to every request
+          // handler as extra.authInfo, which is how the tool call gets the caller's key.
+          req.auth = {
+            token,
+            clientId: process.env.OAUTH_CLIENT_ID || 'unknown',
+            scopes: [],
+            extra: { userId: req.user.id, repliersApiKey: req.user.repliersApiKey },
+          };
+
           console.error(`[DEBUG] User authenticated: ${req.user.id} (${req.user.email || 'no email'})`);
           next();
 
@@ -447,7 +464,6 @@ async function run() {
             return res.status(400).json({ error: "New sessions must be initialized with a POST request" });
           }
 
-          const repliersApiKey = selfHosted ? process.env.REPLIERS_API_KEY : req.user.repliersApiKey;
           const sessionUserId = selfHosted ? null : req.user.id;
           console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${sessionUserId}`}`);
 
@@ -458,7 +474,7 @@ async function run() {
           server.onerror = (error) => console.error("[SERVER ERROR]", error);
 
           const tools = await discoverTools();
-          await setupServerHandlers(server, tools, repliersApiKey);
+          await setupServerHandlers(server, tools);
 
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
