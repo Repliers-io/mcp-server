@@ -132,7 +132,7 @@ async function transformTools(tools) {
     .filter(Boolean);
 }
 
-async function setupServerHandlers(server, tools, repliersApiKey) {
+async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
 
   // List tools handler
@@ -140,8 +140,8 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
     tools: await transformTools(tools),
   }));
 
-  // Call tool handler - FIXED VERSION
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  // Call tool handler
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const toolName = request.params.name;
     console.error(`[DEBUG] Tool call requested: ${toolName}`);
 
@@ -165,6 +165,14 @@ async function setupServerHandlers(server, tools, repliersApiKey) {
         );
       }
     }
+
+    // The Repliers key is resolved per request, from the identity verifyOAuthToken proved
+    // for this very call, rather than captured when the session was opened. A key that is
+    // rotated or revoked upstream therefore takes effect on the next call instead of living
+    // on for the lifetime of the session. Absent in self-hosted and stdio mode, where there
+    // is no per-user identity and the environment key is the only one.
+    const repliersApiKey =
+      extra?.authInfo?.extra?.repliersApiKey ?? process.env.REPLIERS_API_KEY;
 
     try {
       const result = await tool.function({ ...args, _repliersApiKey: repliersApiKey });
@@ -241,7 +249,7 @@ async function run() {
       const app = express();
       app.use(express.json());
 
-      const sessions = {}; // sessionId -> { transport, server }
+      const sessions = {}; // sessionId -> { transport, server, userId }
 
       // OAuth token verification middleware using UserInfo endpoint
       async function verifyOAuthToken(req, res, next) {
@@ -292,7 +300,10 @@ async function run() {
             profile: userInfo
           };
 
-          // Fetch Repliers API key from PropelAuth org metadata
+          // Fetch Repliers API key from PropelAuth org metadata. Tracked separately from a
+          // missing key: "we could not ask" and "the account has no key" are different
+          // failures and land on different people.
+          let keyLookupFailed = false;
           if (req.user.id && process.env.PROPELAUTH_API_KEY) {
             try {
               // UserInfo endpoint doesn't include org membership — fetch it from the backend user API
@@ -305,14 +316,46 @@ async function run() {
                 req.user.repliersApiKey = userData.metadata?.repliers_api_key;
                 console.error(`[DEBUG] Repliers API key ${req.user.repliersApiKey ? 'found' : 'not found'} in user metadata`);
               } else {
+                keyLookupFailed = true;
                 console.error(`[WARN] Could not fetch user from PropelAuth backend: ${userResponse.status}`);
               }
             } catch (orgError) {
+              keyLookupFailed = true;
               console.error('[WARN] Error fetching org metadata:', orgError.message);
             }
           } else {
+            keyLookupFailed = true;
             if (!process.env.PROPELAUTH_API_KEY) console.error('[DEBUG] PROPELAUTH_API_KEY not set, skipping org metadata fetch');
           }
+
+          // Hosted mode has no fallback key. Without one, every tool call would still be
+          // served, ship the literal string "undefined" as REPLIERS-API-KEY and come back as
+          // a Repliers 401 — turning our own misconfiguration into what looks like their
+          // outage, several layers away from the cause. Refuse here instead, and distinguish
+          // the two cases so the log says who has to fix it.
+          if (!req.user.repliersApiKey) {
+            if (keyLookupFailed) {
+              console.error(`[ERROR] Refusing ${req.user.id}: could not read the Repliers key from PropelAuth`);
+              return res.status(503).json({
+                error: "key_lookup_failed",
+                message: "Could not read this account's Repliers API key from PropelAuth. This is a server-side configuration problem, not a problem with the request."
+              });
+            }
+            console.error(`[ERROR] Refusing ${req.user.id}: no repliers_api_key in PropelAuth metadata`);
+            return res.status(403).json({
+              error: "account_not_provisioned",
+              message: "This account has no Repliers API key configured. Contact Repliers support to have it enabled for MCP access."
+            });
+          }
+
+          // Handed to the transport per request: the SDK surfaces req.auth to every request
+          // handler as extra.authInfo, which is how the tool call gets the caller's key.
+          req.auth = {
+            token,
+            clientId: process.env.OAUTH_CLIENT_ID || 'unknown',
+            scopes: [],
+            extra: { userId: req.user.id, repliersApiKey: req.user.repliersApiKey },
+          };
 
           console.error(`[DEBUG] User authenticated: ${req.user.id} (${req.user.email || 'no email'})`);
           next();
@@ -422,10 +465,20 @@ async function run() {
         try {
           const sessionId = req.headers['mcp-session-id'];
 
-          // Route existing sessions directly
+          // Route existing sessions directly. A session id is a client-supplied
+          // header, so it never stands in for identity: the caller proven by
+          // verifyOAuthToken must also be the user the session was opened for,
+          // otherwise any authenticated user could drive another user's session
+          // and spend their Repliers API key. Mismatches answer 404 rather than
+          // 403 so the endpoint cannot be used to probe which session ids exist.
           if (sessionId) {
             const session = sessions[sessionId];
-            if (!session) {
+            if (!session || (!selfHosted && session.userId !== req.user.id)) {
+              if (session) {
+                console.error(
+                  `[WARN] Session ownership mismatch: ${sessionId} is owned by ${session.userId}, requested by ${req.user.id}`
+                );
+              }
               return res.status(404).json({ error: "Session not found" });
             }
             await session.transport.handleRequest(req, res, req.body);
@@ -437,8 +490,8 @@ async function run() {
             return res.status(400).json({ error: "New sessions must be initialized with a POST request" });
           }
 
-          const repliersApiKey = selfHosted ? process.env.REPLIERS_API_KEY : req.user.repliersApiKey;
-          console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${req.user.id}`}`);
+          const sessionUserId = selfHosted ? null : req.user.id;
+          console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${sessionUserId}`}`);
 
           const server = new Server(
             { name: SERVER_NAME, version: "0.1.0" },
@@ -447,13 +500,13 @@ async function run() {
           server.onerror = (error) => console.error("[SERVER ERROR]", error);
 
           const tools = await discoverTools();
-          await setupServerHandlers(server, tools, repliersApiKey);
+          await setupServerHandlers(server, tools);
 
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
             onsessioninitialized: (sid) => {
-              sessions[sid] = { transport, server };
-              console.error(`[DEBUG] Session initialized: ${sid}`);
+              sessions[sid] = { transport, server, userId: sessionUserId };
+              console.error(`[DEBUG] Session initialized: ${sid}${selfHosted ? '' : ` (owner: ${sessionUserId})`}`);
             },
             onsessionclosed: (sid) => {
               delete sessions[sid];
