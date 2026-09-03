@@ -397,16 +397,40 @@ async function run() {
         });
       });
 
-      // OAuth discovery endpoint - provide OAuth server metadata
+      /**
+       * The public origin this server is reached on. Not knowable from configuration: Heroku
+       * terminates TLS and forwards plain HTTP, so the scheme has to come off x-forwarded-proto
+       * or an https:// deployment would advertise itself as http://. Both inputs are
+       * caller-controlled, which is harmless here — the client compares the result against the
+       * URL it just requested, so a spoofed value only ever invalidates the spoofer's own copy.
+       */
+      function publicOrigin(req) {
+        const forwarded = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+        const protocol = forwarded === "https" || forwarded === "http" ? forwarded : req.protocol;
+        return `${protocol}://${req.get("host")}`;
+      }
+
+      // OAuth discovery endpoint - provide OAuth server metadata.
+      //
+      // RFC 8414 §3.3: `issuer` identifies the server that served this document, and a client
+      // MUST discard metadata whose issuer is not the origin it fetched them from. Naming
+      // PropelAuth here made Codex refuse to log in ("OAuth authorization server issuer does not
+      // match authorization metadata origin"); claude.ai skips the check, which is why it worked.
+      // Only the identity moves to this host — authorization still happens at PropelAuth.
+      //
+      // The /.well-known/openid-configuration document above still reports the PropelAuth issuer
+      // on purpose: OIDC clients validate the `iss` claim of PropelAuth-signed ID tokens against
+      // it, so pointing it here would break them to fix nobody. Codex never reads it.
       app.get("/.well-known/oauth-authorization-server", (req, res) => {
         console.error("[DEBUG] OAuth discovery endpoint called");
 
         const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
         const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
         const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
+        const issuer = publicOrigin(req);
 
         res.status(200).json({
-          issuer: baseUrl,
+          issuer,
           authorization_endpoint: authorizationEndpoint,
           token_endpoint: tokenEndpoint,
           response_types_supported: ["code"],
@@ -414,7 +438,7 @@ async function run() {
           code_challenge_methods_supported: ["S256"],
           token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
           // Include a registration endpoint that will return an error explaining the situation
-          registration_endpoint: `https://${req.get('host')}/oauth/register`
+          registration_endpoint: `${issuer}/oauth/register`
         });
       });
 
