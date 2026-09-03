@@ -14,6 +14,8 @@ export function defaultUsers() {
   return {
     "alice-token": { sub: "user-alice", email: "alice@example.test", key: "KEY-ALICE-1" },
     "bob-token": { sub: "user-bob", email: "bob@example.test", key: "KEY-BOB-1" },
+    // Authenticates fine, but was never provisioned with a Repliers key.
+    "keyless-token": { sub: "user-keyless", email: "keyless@example.test", key: null },
   };
 }
 
@@ -23,6 +25,7 @@ export function defaultUsers() {
  * next request the server makes.
  */
 export async function startFakePropelAuth(users = defaultUsers()) {
+  const state = { rejectBackend: false };
   const server = http.createServer((req, res) => {
     const bearer = (req.headers.authorization || "").replace(/^Bearer /, "");
     const url = new URL(req.url, "http://localhost");
@@ -37,11 +40,18 @@ export async function startFakePropelAuth(users = defaultUsers()) {
 
     const backend = url.pathname.match(/^\/api\/backend\/v1\/user\/(.+)$/);
     if (backend) {
+      // Simulates our own PROPELAUTH_API_KEY being wrong or expired.
+      if (state.rejectBackend) {
+        return res
+          .writeHead(401, { "content-type": "application/json" })
+          .end(JSON.stringify({ error: "invalid_api_key" }));
+      }
       const user = Object.values(users).find((u) => u.sub === backend[1]);
       if (!user) return res.writeHead(404).end("{}");
+      const metadata = user.key === null ? {} : { repliers_api_key: user.key };
       return res
         .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ metadata: { repliers_api_key: user.key } }));
+        .end(JSON.stringify({ metadata }));
     }
 
     res.writeHead(404).end("{}");
@@ -51,6 +61,10 @@ export async function startFakePropelAuth(users = defaultUsers()) {
   return {
     port: server.address().port,
     users,
+    /** Makes the backend user API reject our PROPELAUTH_API_KEY, as a wrong one would. */
+    setBackendRejects(value) {
+      state.rejectBackend = value;
+    },
     rotateKey(sub, key) {
       const user = Object.values(users).find((u) => u.sub === sub);
       assert.ok(user, `no such fake user: ${sub}`);

@@ -300,7 +300,10 @@ async function run() {
             profile: userInfo
           };
 
-          // Fetch Repliers API key from PropelAuth org metadata
+          // Fetch Repliers API key from PropelAuth org metadata. Tracked separately from a
+          // missing key: "we could not ask" and "the account has no key" are different
+          // failures and land on different people.
+          let keyLookupFailed = false;
           if (req.user.id && process.env.PROPELAUTH_API_KEY) {
             try {
               // UserInfo endpoint doesn't include org membership — fetch it from the backend user API
@@ -313,13 +316,36 @@ async function run() {
                 req.user.repliersApiKey = userData.metadata?.repliers_api_key;
                 console.error(`[DEBUG] Repliers API key ${req.user.repliersApiKey ? 'found' : 'not found'} in user metadata`);
               } else {
+                keyLookupFailed = true;
                 console.error(`[WARN] Could not fetch user from PropelAuth backend: ${userResponse.status}`);
               }
             } catch (orgError) {
+              keyLookupFailed = true;
               console.error('[WARN] Error fetching org metadata:', orgError.message);
             }
           } else {
+            keyLookupFailed = true;
             if (!process.env.PROPELAUTH_API_KEY) console.error('[DEBUG] PROPELAUTH_API_KEY not set, skipping org metadata fetch');
+          }
+
+          // Hosted mode has no fallback key. Without one, every tool call would still be
+          // served, ship the literal string "undefined" as REPLIERS-API-KEY and come back as
+          // a Repliers 401 — turning our own misconfiguration into what looks like their
+          // outage, several layers away from the cause. Refuse here instead, and distinguish
+          // the two cases so the log says who has to fix it.
+          if (!req.user.repliersApiKey) {
+            if (keyLookupFailed) {
+              console.error(`[ERROR] Refusing ${req.user.id}: could not read the Repliers key from PropelAuth`);
+              return res.status(503).json({
+                error: "key_lookup_failed",
+                message: "Could not read this account's Repliers API key from PropelAuth. This is a server-side configuration problem, not a problem with the request."
+              });
+            }
+            console.error(`[ERROR] Refusing ${req.user.id}: no repliers_api_key in PropelAuth metadata`);
+            return res.status(403).json({
+              error: "account_not_provisioned",
+              message: "This account has no Repliers API key configured. Contact Repliers support to have it enabled for MCP access."
+            });
           }
 
           // Handed to the transport per request: the SDK surfaces req.auth to every request
