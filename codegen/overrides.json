@@ -1,0 +1,200 @@
+{
+  "_comment": "Keyed by operationId OR 'METHOD /path' for operations without an operationId. All fields are optional.",
+  "_schema": {
+    "name": "Tool name shown to the LLM (overrides operationId-derived default)",
+    "description": "Full tool description (overrides spec summary/description)",
+    "filename": "Output filename (default: derived from operationId)",
+    "forcedQueryParams": "Key/value pairs always appended to the query string (excluded from the tool schema)",
+    "excludeFromSchema": "Parameter names to omit from the tool's input schema entirely",
+    "parameterDescriptions": "Per-parameter description overrides (key = param name)",
+    "additionalContext": "Appended to the auto-generated description (use this to preserve custom context across regens)"
+  },
+
+  "get-a-listing": {
+    "name": "get-listing",
+    "description": "Fetch full details for a single listing by mlsNumber. Use to display a property detail page or retrieve all fields for one known listing. Key params: mlsNumber (required), boardId (required if multi-board account), fields, locations. NOT for browsing or searching — use Search_Listings."
+  },
+  "find-similar-listings": {
+    "name": "get-similar-listings",
+    "description": "Return listings similar to a given mlsNumber by price range, type, and location proximity. Use to power a \"similar homes\" or \"you may also like\" section on a listing detail page. Key params: mlsNumber (required), boardId, listPriceRange, radius, sortBy. NOT a general search — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+  },
+  "lookup-address-history": {
+    "name": "get-address-listing-history",
+    "description": "Retrieve all historical MLS listings for a specific address (sold, expired, cancelled cycles). Use to show a property's full MLS history. Key params: streetNumber, streetName, city (or mlsNumber / addressKey for a known listing). NOT for searching listings by criteria — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+  },
+  "get-deleted-listings": {
+    "name": "get-deleted-listings",
+    "description": "Return listings removed from the MLS feed since a given timestamp. Use for data-sync pipelines to detect deletions and keep a local dataset current. Key params: updatedOn (timestamp cutoff), boardId. NOT intended for property browsing — use Search_Listings for that. If results look wrong or incomplete — see send-feedback."
+  },
+  "locations": {
+    "name": "get-listing-areas-and-cities",
+    "description": "Return the area/city/neighborhood hierarchy derived from active listings data. Use to populate location filter dropdowns or navigation menus with values that actually exist in listings. No key params required; results reflect the connected board's data. NOT for resolving a place name to a locationId — use search-locations or autocomplete-location-search. If results look wrong or incomplete — see send-feedback."
+  },
+
+  "GET /locations": {
+    "name": "search-locations",
+    "description": "Search locations (areas, cities, neighborhoods, postal codes, school districts…) by name or filters; returns names, types, coordinates and locationId. Use to resolve a place the user named into a locationId or to explore what areas exist. Key params: search (text), type[] (area|city|neighborhood|postalCode|district|schoolDistrict|school), city[], area[], resultsPerPage. NOT for listing searches — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+  },
+  "GET /locations/autocomplete": {
+    "name": "autocomplete-location-search",
+    "description": "Type-ahead location matching: pass the user's partial input in search (min 3 chars) and get matching areas/cities/neighborhoods with locationId. Use for resolving ambiguous or misspelled place names quickly; filter with type[] to narrow. NOT for property/listing lookups — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+  },
+
+  "brokerages": {
+    "name": "search-brokerages",
+    "description": "List all brokerages registered with the MLS on the connected account. Use to build a brokerage directory or populate a brokerage filter dropdown. No filter params available — returns the full list. NOT for searching individual agents or offices — use search-members or search-offices. If results look wrong or incomplete — see send-feedback."
+  },
+  "offices": {
+    "name": "search-offices",
+    "description": "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members. If results look wrong or incomplete — see send-feedback."
+  },
+  "members": {
+    "name": "search-members",
+    "description": "List and filter MLS member agents on the connected account. Use to look up an agent by name, brokerage, or office. Key params: agentName, brokerage, officeId, keywords, boardId, position, resultsPerPage. NOT for CRM agents — use search-agents. If results look wrong or incomplete — see send-feedback."
+  },
+  "buildings": {
+    "name": "search-listing-buildings",
+    "description": "Search condo and apartment buildings referenced by listings on the connected account. Use to find a building by name, address, or location and retrieve its addressKey. Key params: buildingName, streetNumber, streetName, city, area, neighborhood, lat/long/radius, map. NOT for listing searches — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+  },
+  "places": {
+    "name": "search-places",
+    "description": "Find points of interest (restaurants, schools, transit stops, etc.) near a location. Use to enrich a listing detail page with nearby amenities. Key params: lat, long, radius, type. NOT for MLS listings — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+  },
+
+  "find-agents": {
+    "name": "search-agents",
+    "description": "List and filter CRM agents on the connected account. Use to look up an agent record by name, email, phone, status, or boardId. Key params: fname, lname, email, phone, status, boardId, brokerage, externalId. Operates on the connected account's CRM data — not the public MLS directory."
+  },
+  "create-an-agent": {
+    "name": "create-agent",
+    "description": "Create a new CRM agent record on the connected account. Use when onboarding a new agent to the system. Key params: fname, lname, email, phone, brokerage, designation, status, location, externalId. Operates on the connected account's CRM data."
+  },
+  "get-an-agent": {
+    "name": "get-agent",
+    "description": "Fetch the full profile of a specific CRM agent by agentId. Use to display an agent's details or verify their record before an update. Key params: agentId (required). Operates on the connected account's CRM data."
+  },
+  "update-an-agent": {
+    "name": "update-agent",
+    "description": "Update one or more fields on an existing CRM agent record. Include only the fields to change — omitted fields are unchanged. Key params: agentId (required), fname, lname, email, phone, status, brokerage, designation, externalId. Operates on the connected account's CRM data."
+  },
+  "delete-an-agent": {
+    "name": "delete-agent",
+    "description": "Delete a CRM agent record from the connected account. Requires specifying a replacement agentId to reassign the deleted agent's clients. Key params: agentId (required). Operates on the connected account's CRM data."
+  },
+  "transfer-agents": {
+    "name": "transfer-agent-clients",
+    "description": "Move all clients from one CRM agent to another on the connected account. Use when an agent leaves or is deactivated and their book of business needs reassignment. Key params: source agentId, destination agentId. Operates on the connected account's CRM data."
+  },
+
+  "search-clients": {
+    "name": "search-clients",
+    "description": "List and filter CRM clients on the connected account. Use to find clients by name, email, phone, status, tags, or agentId. Key params: agentId, fname, lname, email, phone, status, tags, keywords, pageNum, resultsPerPage, showSavedSearches, externalId. Operates on the connected account's CRM data."
+  },
+  "create-a-client": {
+    "name": "create-client",
+    "description": "Create a new CRM client record on the connected account. Key params: agentId, fname, lname, email, phone, status, tags, preferences, externalId. Operates on the connected account's CRM data."
+  },
+  "get-a-client": {
+    "name": "get-client",
+    "description": "Fetch the full profile of a specific CRM client by clientId, including contact info, status, and tags. Key params: clientId (required). Operates on the connected account's CRM data."
+  },
+  "update-a-client": {
+    "name": "update-client",
+    "description": "Update one or more fields on an existing CRM client record. Include only the fields to change. Key params: clientId (required), agentId, fname, lname, email, phone, status, tags, preferences, externalId. Operates on the connected account's CRM data."
+  },
+  "delete-a-client": {
+    "name": "delete-client",
+    "description": "Delete a CRM client and all associated data (saved searches, favorites, messages, estimates). Irreversible. Key params: clientId (required). Operates on the connected account's CRM data."
+  },
+  "rename-a-tag": {
+    "name": "rename-client-tag",
+    "description": "Rename a client tag across all clients on the connected account that use it. Use to keep tag taxonomy consistent after a naming change. Operates on the connected account's CRM data."
+  },
+
+  "filter-searches": {
+    "name": "list-saved-searches",
+    "description": "List saved searches on the connected account, optionally filtered by client or agent. Use to display a client's active property alerts or browse all configured searches. Key params: clientId, agentId, status, searchId, pageNum, resultsPerPage. Operates on the connected account's CRM data."
+  },
+  "create-a-saved-search": {
+    "name": "create-saved-search",
+    "description": "Create a saved search (property alert) for a client on the connected account. The search criteria drive automated match notifications. Key params: clientId (required), name, property filters (minPrice, maxPrice, minBeds, maxBeds, cities, neighborhoods, type, status, etc.), notificationFrequency. Operates on the connected account's CRM data."
+  },
+  "get-a-saved-search": {
+    "name": "get-saved-search",
+    "description": "Fetch the full criteria and settings for a specific saved search by searchId. Use to display or verify a client's search before editing it. Key params: searchId (required). Operates on the connected account's CRM data."
+  },
+  "update-a-saved-search": {
+    "name": "update-saved-search",
+    "description": "Update a saved search's criteria or notification settings. All filter fields are replaced on update — include the complete desired criteria, not just changed fields. Key params: searchId (required), clientId, and any filter criteria to apply. Operates on the connected account's CRM data."
+  },
+  "delete-a-saved-search": {
+    "name": "delete-saved-search",
+    "description": "Delete a saved search. The client will stop receiving notifications for this search. Key params: searchId (required). Operates on the connected account's CRM data."
+  },
+
+  "filter-matches": {
+    "name": "list-saved-search-matches",
+    "description": "List listings matched against a saved search on the connected account. Use to show a client which new listings triggered their alert. Key params: searchId (required), liked, viewed, status, lastStatus, startDate, endDate, pageNum, resultsPerPage. Operates on the connected account's CRM data."
+  },
+  "get-a-match": {
+    "name": "get-saved-search-match",
+    "description": "Fetch the details of a specific listing match within a saved search, including the full listing data and the client's liked/viewed status. Key params: searchId (required), matchId (required). Operates on the connected account's CRM data."
+  },
+  "update-a-match": {
+    "name": "update-saved-search-match",
+    "description": "Mark a saved-search match as viewed or liked/disliked by the client. Use to track client engagement with matched listings. Key params: searchId (required), matchId (required), viewed, liked. Operates on the connected account's CRM data."
+  },
+
+  "get-estimates": {
+    "name": "list-estimates",
+    "description": "List property value estimates created on the connected account, optionally filtered by clientId or estimateId. Use to show a client their saved valuations. Key params: clientId, estimateId, pageNum, resultsPerPage. Operates on the connected account's CRM data."
+  },
+  "create-an-estimate": {
+    "name": "create-estimate",
+    "description": "Create a property value estimate for a client by submitting property attributes. More attributes = more accurate result. Key params: clientId, address (required), details (beds, baths, sqft, etc.), overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly. Operates on the connected account's CRM data.",
+    "additionalContext": "Before submitting, present all inputs to the user for review and confirmation. Details like bedroom count, property tax, or lot size directly influence the valuation — the user should verify them before proceeding.\n\nCollect as many property attributes as possible. The more fields provided, the more accurate the estimate. Prompt the user for missing fields if they're readily available.\n\nAfter receiving the response, interpret the confidence score for the user:\n- Below 0.05: Excellent — strong comparable data available\n- 0.05 to 0.10: Good — reasonable confidence\n- Above 0.10: Low confidence — limited comparable data. This may indicate that some home facts are inaccurate or that the property type is uncommon in the area. Suggest the user review the inputs."
+  },
+  "create-an-estimate-copy": {
+    "name": "update-estimate",
+    "description": "Update an existing property value estimate with revised property attributes and request a recalculation. Key params: estimateId (required), and any property fields to change (address, details, overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly, clientId). Operates on the connected account's CRM data."
+  },
+  "delete-an-estimate": {
+    "name": "delete-estimate",
+    "description": "Delete a property value estimate from the connected account. Key params: estimateId (required). Operates on the connected account's CRM data."
+  },
+
+  "filter-messages": {
+    "name": "list-messages",
+    "description": "List and filter agent↔client messages on the connected account. Use to view a conversation thread or audit communications. Key params: clientId, agentId, sender, status, startTime, endTime, pageNum, resultsPerPage. Operates on the connected account's CRM data."
+  },
+  "send-a-message": {
+    "name": "send-message",
+    "description": "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (object with message/subject/listings sub-fields). Operates on the connected account's CRM data."
+  },
+  "get-a-message": {
+    "name": "get-message",
+    "description": "Fetch details of a specific message by messageId on the connected account. Use to retrieve the full content and metadata of a sent message. Key params: messageId (required). Operates on the connected account's CRM data."
+  },
+
+  "get-favorites": {
+    "name": "list-favorites",
+    "description": "List a client's favorited listings on the connected account, with optional status and tag filters. Use to display a client's saved properties. Key params: clientId (required), status, lastStatus, tags, boardId, fields, pageNum, resultsPerPage. Operates on the connected account's CRM data."
+  },
+  "delete-a-favorite": {
+    "name": "remove-favorite",
+    "description": "Remove a listing from a client's favorites on the connected account. Key params: favoriteId (required). Operates on the connected account's CRM data."
+  },
+
+  "GET /nlp": {
+    "name": "list-nlp-search-history",
+    "description": "List past NLP search prompts submitted by a client on the connected account. Use to review a client's natural-language query history. Key params: clientId, nlpId. Operates on the connected account's CRM data."
+  },
+  "POST /nlp": { "name": "search-listings-with-nlp" },
+  "GET /nlp/chats": {
+    "name": "list-nlp-chat-sessions",
+    "description": "List NLP conversation sessions for a client on the connected account. Use to browse past AI-assisted chat sessions and their prompts. Key params: clientId, nlpId, resultsPerPage, pageNum, prompts. Operates on the connected account's CRM data."
+  },
+
+  "POST /buildings": { "name": "search-buildings" },
+  "GET /buildings/{addressKey}": { "name": "get-building" }
+}
