@@ -110,7 +110,7 @@ function freePort() {
  * variable, so it keeps the repo's own .env from flipping the server into self-hosted mode
  * (which would drop verifyOAuthToken from the chain entirely). Same trick pins the API host.
  */
-export async function startMcpServer({ propelAuthPort, repliersApiPort }) {
+export async function startMcpServer({ propelAuthPort, repliersApiPort, env = {} }) {
   const port = await freePort();
   const oauthBase = `http://127.0.0.1:${propelAuthPort}`;
   const child = spawn(process.execPath, ["mcpServer.js", "--http"], {
@@ -123,6 +123,8 @@ export async function startMcpServer({ propelAuthPort, repliersApiPort }) {
       OAUTH_BASE_URL: oauthBase,
       OAUTH_USERINFO_ENDPOINT: `${oauthBase}/oauth/userinfo`,
       PROPELAUTH_API_KEY: "propelauth-test-key",
+      // Last word, so a suite can flip the server into self-hosted mode.
+      ...env,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -138,7 +140,9 @@ export async function startMcpServer({ propelAuthPort, repliersApiPort }) {
       const res = await fetch(`http://127.0.0.1:${port}/health`);
       if (res.ok) {
         const body = await res.json();
-        assert.equal(body.oauth_enabled, true, `server must be in hosted mode:\n${log}`);
+        if (!("REPLIERS_API_KEY" in env)) {
+          assert.equal(body.oauth_enabled, true, `server must be in hosted mode:\n${log}`);
+        }
         break;
       }
     } catch {

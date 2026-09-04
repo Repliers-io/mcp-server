@@ -257,7 +257,7 @@ async function run() {
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
           console.error("[ERROR] Missing or invalid authorization header");
-          return res.status(401).json({
+          return res.status(401).set("WWW-Authenticate", bearerChallenge(req)).json({
             error: "unauthorized",
             message: "Missing or invalid authorization header. Expected: Bearer <token>"
           });
@@ -282,10 +282,13 @@ async function run() {
 
           if (!response.ok) {
             console.error("[ERROR] Token validation failed:", response.status);
-            return res.status(401).json({
-              error: "unauthorized",
-              message: "Token is invalid or expired"
-            });
+            return res
+              .status(401)
+              .set("WWW-Authenticate", bearerChallenge(req, "invalid_token"))
+              .json({
+                error: "unauthorized",
+                message: "Token is invalid or expired"
+              });
           }
 
           const userInfo = await response.json();
@@ -410,6 +413,49 @@ async function run() {
         return `${protocol}://${req.get("host")}`;
       }
 
+      /** The metadata document describing whichever MCP endpoint this request was aimed at. */
+      function resourceMetadataUrl(req) {
+        const suffix = req.path === "/mcp" ? "/mcp" : "";
+        return `${publicOrigin(req)}/.well-known/oauth-protected-resource${suffix}`;
+      }
+
+      /**
+       * RFC 6750 challenge carrying the RFC 9728 pointer, used by verifyOAuthToken above.
+       * `error` is left out when no credentials were presented at all: per RFC 6750 §3.1 that
+       * is an unauthenticated request, not a failed authentication attempt.
+       */
+      function bearerChallenge(req, error) {
+        const pointer = `resource_metadata="${resourceMetadataUrl(req)}"`;
+        return error ? `Bearer error="${error}", ${pointer}` : `Bearer ${pointer}`;
+      }
+
+      // Protected resource metadata (RFC 9728). This server is a resource server, not an
+      // authorization server, and this is the document that says so — it names PropelAuth as
+      // the place to authenticate. Clients look for it first: Codex tries all three of its
+      // addresses before it ever falls back to the authorization-server metadata below.
+      //
+      // Hosted mode only. A self-hosted server carries its own REPLIERS_API_KEY and never runs
+      // verifyOAuthToken, so advertising an authorization server there would send clients into
+      // a login flow that guards nothing.
+      if (!selfHosted) {
+        const protectedResource = (req, resourcePath) => ({
+          resource: `${publicOrigin(req)}${resourcePath}`,
+          authorization_servers: [process.env.OAUTH_BASE_URL || "https://your-oauth-server.com"],
+          bearer_methods_supported: ["header"],
+        });
+
+        // RFC 9728 §3.1 derives the address from the resource path, so the endpoint served at
+        // /mcp is described one path segment deep — not under /mcp itself.
+        app.get("/.well-known/oauth-protected-resource", (req, res) => {
+          console.error("[DEBUG] Protected resource metadata requested for /");
+          res.status(200).json(protectedResource(req, "/"));
+        });
+        app.get("/.well-known/oauth-protected-resource/mcp", (req, res) => {
+          console.error("[DEBUG] Protected resource metadata requested for /mcp");
+          res.status(200).json(protectedResource(req, "/mcp"));
+        });
+      }
+
       // OAuth discovery endpoint - provide OAuth server metadata.
       //
       // RFC 8414 §3.3: `issuer` identifies the server that served this document, and a client
@@ -444,7 +490,18 @@ async function run() {
 
       // Dynamic client registration endpoint - returns pre-configured client
       // This is a workaround for MCP clients that require dynamic registration
-      app.post("/oauth/register", (_req, res) => {
+      // The redirect URIs already registered with PropelAuth. Dynamic registration is off
+      // there, so this list lives in its dashboard and no code here can extend it — it is
+      // configurable only so a deployment can state what its dashboard actually holds.
+      const registeredRedirectUris = (
+        process.env.OAUTH_REDIRECT_URIS ||
+        "http://localhost:3000/callback,http://127.0.0.1:3000/callback,https://app.jenova.ai/oauth/callback"
+      )
+        .split(",")
+        .map((uri) => uri.trim())
+        .filter(Boolean);
+
+      app.post("/oauth/register", (req, res) => {
         console.error("[DEBUG] Dynamic client registration attempted");
 
         // Check if we have a pre-configured client ID
@@ -457,16 +514,33 @@ async function run() {
           });
         }
 
+        // This endpoint registers nothing: it hands back one pre-existing PropelAuth client
+        // whose redirect URIs are fixed in that dashboard. Answering 201 to a client that asked
+        // for a different URI told it registration had succeeded, so it went on to authorize
+        // with its own address — which PropelAuth then refused the only way the spec allows,
+        // by not redirecting at all, i.e. a bare 404 two hops later on another domain with no
+        // trace of the cause. Refuse here instead, where the reason is still visible.
+        // RFC 7591 §3.2.2 names this error; a client that speaks DCR will surface it.
+        const requested = Array.isArray(req.body?.redirect_uris) ? req.body.redirect_uris : [];
+        const unregistered = requested.filter((uri) => !registeredRedirectUris.includes(uri));
+
+        if (unregistered.length > 0) {
+          console.error(`[ERROR] Refusing registration for unregistered redirect_uri: ${unregistered.join(", ")}`);
+          return res.status(400).json({
+            error: "invalid_redirect_uri",
+            error_description:
+              `Dynamic client registration is not enabled on the upstream identity provider, so only redirect URIs already registered there can be used. ` +
+              `Refused: ${unregistered.join(", ")}. Registered: ${registeredRedirectUris.join(", ")}. ` +
+              `A client that allocates a fresh loopback port and path per login cannot be supported until Dynamic Client Registration is enabled in the PropelAuth dashboard.`
+          });
+        }
+
         // Return the pre-configured client as if we just registered it
         console.error("[DEBUG] Returning pre-configured client ID:", preConfiguredClientId);
         res.status(201).json({
           client_id: preConfiguredClientId,
           client_secret: process.env.OAUTH_CLIENT_SECRET || undefined,
-          redirect_uris: [
-            "http://localhost:3000/callback",
-            "http://127.0.0.1:3000/callback",
-            "https://app.jenova.ai/oauth/callback"
-          ],
+          redirect_uris: registeredRedirectUris,
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],
           token_endpoint_auth_method: process.env.OAUTH_CLIENT_SECRET ? "client_secret_post" : "none"
