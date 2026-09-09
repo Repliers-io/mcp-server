@@ -6,6 +6,10 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createAuthorizationServerState,
+  handleAuthorizationServer,
+} from "./fakeAuthorizationServer.js";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -45,21 +49,39 @@ export function defaultUsers() {
  * Stands in for PropelAuth: RFC 7662 introspection plus the backend user API that
  * mcpServer.js reads repliers_api_key from. Serves `users` live, so rotateKey() is visible to
  * the very next request the server makes.
+ *
+ * It also carries the authorization-server endpoints (see fakeAuthorizationServer.js) so a real
+ * MCP client can be driven through a complete login. Most suites never touch those; they mint
+ * tokens by naming one of the static fixtures above instead.
  */
 export async function startFakePropelAuth(users = defaultUsers()) {
-  // `audience` is what this fake mints tokens for. startMcpServer points it at the server whose
-  // port it has just allocated; a suite can aim it elsewhere to forge a token for someone else's
-  // resource, which is the case audience validation exists to reject.
-  const state = { rejectBackend: false, audience: "https://unset.invalid/mcp" };
-  const server = http.createServer((req, res) => {
+  // `audience` is what this fake mints static-fixture tokens for. startMcpServer points it at
+  // the server whose port it has just allocated; a suite can aim it elsewhere to forge a token
+  // for someone else's resource, which is the case audience validation exists to reject.
+  const state = {
+    rejectBackend: false,
+    audience: "https://unset.invalid/mcp",
+    ...createAuthorizationServerState(),
+  };
+
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
 
-    // RFC 7662 introspection, as PropelAuth's MCP authorization server serves it.
+    if (await handleAuthorizationServer(req, res, state)) return;
+
+    // RFC 7662 introspection, as PropelAuth's MCP authorization server serves it. Tokens minted
+    // by a real login are looked up first; the static fixtures are the fallback.
     if (url.pathname === "/oauth/2.1/introspect" && req.method === "POST") {
       let body = "";
       req.on("data", (chunk) => (body += chunk));
       req.on("end", () => {
         const token = new URLSearchParams(body).get("token");
+        const live = state.issued.get(token);
+        if (live) {
+          return res
+            .writeHead(200, { "content-type": "application/json" })
+            .end(JSON.stringify(live));
+        }
         const user = users[token];
         if (!user) {
           return res
@@ -103,9 +125,12 @@ export async function startFakePropelAuth(users = defaultUsers()) {
   });
 
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  state.origin = `http://127.0.0.1:${server.address().port}`;
   return {
     port: server.address().port,
     users,
+    /** Everything a real client sent through the authorization endpoints. */
+    seen: state.seen,
     /** Makes the backend user API reject our PROPELAUTH_API_KEY, as a wrong one would. */
     setBackendRejects(value) {
       state.rejectBackend = value;
