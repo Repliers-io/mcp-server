@@ -23,6 +23,14 @@ test("an unset MCP_PUBLIC_URL is fatal, not defaulted", () => {
   assert.throws(() => canonicalOrigin({}), /MCP_PUBLIC_URL/);
 });
 
+// A scheme-less value is an easy paste error in a variable nobody has set before. Non-empty is
+// not enough: it would pass the startup check, publish unusable metadata, and then throw inside
+// new URL() on the first accepted token, turning every authenticated request into an opaque 500.
+test("an MCP_PUBLIC_URL that is not an absolute URL is fatal too", () => {
+  assert.throws(() => canonicalOrigin({ MCP_PUBLIC_URL: "mcp.repliers.io" }), /MCP_PUBLIC_URL/);
+  assert.throws(() => canonicalOrigin({ MCP_PUBLIC_URL: "   " }), /MCP_PUBLIC_URL/);
+});
+
 test("both paths the server answers on are accepted audiences", () => {
   const audiences = allowedAudiences(env);
   assert.ok(audiences.has("https://mcp.repliers.io"));

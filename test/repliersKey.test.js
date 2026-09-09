@@ -50,6 +50,22 @@ test("a thrown fetch is a lookup failure, not a crash", async () => {
   assert.match(result.reason, /ECONNREFUSED/);
 });
 
+// The id comes from the authorization server, not the caller, but its shape is recorded as
+// unverified (design.md Q5). If it ever arrives composite or pseudonymous, an unencoded value
+// would silently retarget a request made with our own PropelAuth API key at a different endpoint
+// instead of failing.
+test("a user id with path characters cannot rewrite the backend URL", async () => {
+  const seen = [];
+  const resolve = resolverWith(async (url) => {
+    seen.push(url);
+    return { ok: true, json: async () => ({ metadata: {} }) };
+  });
+
+  await resolve("x/../../org/1?y=2");
+
+  assert.equal(seen[0], "https://auth.test/api/backend/v1/user/x%2F..%2F..%2Forg%2F1%3Fy%3D2");
+});
+
 test("a missing PROPELAUTH_API_KEY is a lookup failure named as such", async () => {
   const resolve = createKeyResolver({ backendBaseUrl: "https://auth.test", apiKey: "" });
   const result = await resolve("user-alice");

@@ -78,6 +78,90 @@ test("the resource claim is read when aud is absent, and trailing slashes do not
   assert.equal(info.resource.href, "https://mcp.test/mcp");
 });
 
+// PropelAuth's own documentation disagrees with itself about which field carries the audience,
+// so both are read — and a token that names us in either one is for us. Picking whichever field
+// happens to be populated first would reject a token whose `resource` holds something else.
+test("both aud and resource are consulted, not whichever comes first", async () => {
+  const { verifier } = verifierWith({
+    active: true,
+    sub: "user-alice",
+    scope: "mcp:read",
+    resource: "urn:propelauth:internal-id",
+    aud: "https://mcp.test/mcp",
+    exp: future(),
+  });
+  const info = await verifier.verifyAccessToken("tok");
+  assert.equal(info.resource.href, "https://mcp.test/mcp");
+});
+
+// Several authorization servers return scope as an array rather than the space-delimited string
+// RFC 7662 specifies. Reading only the string shape would leave every user with no scopes at all.
+test("a scope array is understood as well as a scope string", async () => {
+  const { verifier } = verifierWith({
+    active: true,
+    sub: "user-alice",
+    scope: ["mcp:read", "mcp:write"],
+    aud: "https://mcp.test/mcp",
+    exp: future(),
+  });
+  const info = await verifier.verifyAccessToken("tok");
+  assert.deepEqual(info.scopes, ["mcp:read", "mcp:write"]);
+});
+
+// RFC 7662 answers for any token type; token_type_hint is only a hint. If the authorization
+// server tells us this credential is not an access token, believe it.
+test("a credential the authorization server does not call an access token is refused", async () => {
+  const { verifier } = verifierWith({
+    active: true,
+    sub: "user-alice",
+    scope: "mcp:read",
+    aud: "https://mcp.test/mcp",
+    token_type: "refresh_token",
+    exp: future(),
+  });
+  await assert.rejects(() => verifier.verifyAccessToken("tok"), /not an access token/i);
+});
+
+// The audience is echoed into an error message that the SDK writes verbatim into the
+// WWW-Authenticate header. RFC 8707 makes `resource` client-supplied, so an authorization server
+// that echoes it into `aud` would let a caller inject quotes or CRLF into our own response header.
+test("a hostile audience claim cannot be injected into the challenge", async () => {
+  const { verifier } = verifierWith({
+    active: true,
+    sub: "user-alice",
+    scope: "mcp:read",
+    aud: 'https://evil.test/"\r\nX-Injected: yes',
+    exp: future(),
+  });
+  await assert.rejects(
+    () => verifier.verifyAccessToken("tok"),
+    (error) => {
+      assert.doesNotMatch(error.message, /[\r\n"]/, `unescaped in: ${error.message}`);
+      return true;
+    }
+  );
+});
+
+// A misconfigured TTL used to disable caching silently: Number("") is 0, Number("60s") is NaN,
+// and both fail the ttl > 0 guard, so every request hit the rate-limited endpoint with no log.
+test("an unusable cache TTL falls back to the default instead of disabling the cache", async () => {
+  for (const bad of ["", "60s", undefined, -1]) {
+    const { verifier, calls } = verifierWith(
+      {
+        active: true,
+        sub: "user-alice",
+        scope: "mcp:read",
+        aud: "https://mcp.test/mcp",
+        exp: future(),
+      },
+      { cacheTtlMs: bad === undefined ? undefined : Number(bad) }
+    );
+    await verifier.verifyAccessToken("tok");
+    await verifier.verifyAccessToken("tok");
+    assert.equal(calls.length, 1, `cache was disabled by TTL ${JSON.stringify(bad)}`);
+  }
+});
+
 test("requireAudience:false accepts a token with no audience at all", async () => {
   const { verifier } = verifierWith(
     { active: true, sub: "user-alice", scope: "mcp:read", exp: future() },

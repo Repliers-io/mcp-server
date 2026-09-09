@@ -271,6 +271,9 @@ async function run() {
           "OAUTH_BASE_URL",
           "PROPELAUTH_MCP_INTROSPECT_CLIENT_ID",
           "PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET",
+          // Without it no account's Repliers key can be read, so every authenticated request
+          // answers 503 — the same start-then-fail-everything shape the others guard against.
+          "PROPELAUTH_API_KEY",
         ]) {
           if (!process.env[name]) {
             console.error(`[FATAL] ${name} is required in hosted mode`);
