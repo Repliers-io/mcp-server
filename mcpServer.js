@@ -376,6 +376,12 @@ async function run() {
         });
       });
 
+      // A batch counts if any member is the initialize: the SDK accepts that shape too.
+      const isInitializeRequest = (body) =>
+        Array.isArray(body)
+          ? body.some((entry) => entry?.method === "initialize")
+          : body?.method === "initialize";
+
       // MCP endpoint — handles all Streamable HTTP transport methods
       async function handleMcpRequest(req, res) {
         try {
@@ -404,6 +410,23 @@ async function run() {
           // New session — must be POST (initialize)
           if (req.method !== 'POST') {
             return res.status(400).json({ error: "New sessions must be initialized with a POST request" });
+          }
+
+          // ...and the POST has to actually be an initialize. Anything else arriving without a
+          // session id — a client retrying after its session was dropped, a notification racing
+          // ahead of the id it belongs to — used to build a Server, discover the whole roster and
+          // open a transport before the SDK rejected it as "Server not initialized", leaving a log
+          // line with no request to blame and a discarded server behind it.
+          if (!isInitializeRequest(req.body)) {
+            return res.status(400).json({
+              jsonrpc: "2.0",
+              error: {
+                code: -32600,
+                message:
+                  "Expected an initialize request: this POST carried no mcp-session-id, so there is no session to serve it. Initialize first, or resend with the session id.",
+              },
+              id: null,
+            });
           }
 
           const sessionUserId = selfHosted ? null : req.auth.extra.userId;
