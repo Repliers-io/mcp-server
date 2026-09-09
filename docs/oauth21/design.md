@@ -158,6 +158,18 @@ request every scope in `scopes_supported`. A write-only token is not a case wort
 `lib/tools.js:26-35` already derives `readOnlyHint` from the tool-name prefix, and does so by name, so
 the mapping survives `npm run generate`. No per-tool marking is needed.
 
+**Known deviation from the specification.** The spec asks a server to answer an insufficient-scope
+failure with `HTTP 403` and a `WWW-Authenticate: Bearer error="insufficient_scope"` challenge, so a
+client can start a step-up authorization. A missing `mcp:write` is refused as an `McpError` inside
+the JSON-RPC response instead, because the tool name — the only thing that determines whether write
+is needed — is known only after the request has been accepted and routed into an established
+session. Answering 403 at that point would fail the whole transport rather than the one call.
+
+The cost is that a client cannot automatically request the missing scope; the refusal names it in
+prose instead. In practice clients request every scope in `scopes_supported` at login, so a token
+missing `mcp:write` means an administrator restricted it deliberately, and silently escalating back
+is not the behaviour to want. Revisit if MCP defines per-call scope challenges.
+
 ### 4.5 Repliers API key
 
 The logic in `mcpServer.js:306-352` moves into the verifier essentially unchanged: `sub` from
