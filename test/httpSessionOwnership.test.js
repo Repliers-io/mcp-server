@@ -9,7 +9,7 @@ import {
 
 test("hosted mode binds MCP sessions to the authenticated caller", async (t) => {
   const propelAuth = await startFakePropelAuth();
-  const mcp = await startMcpServer({ propelAuthPort: propelAuth.port });
+  const mcp = await startMcpServer({ propelAuth });
 
   t.after(async () => {
     mcp.close();

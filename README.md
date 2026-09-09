@@ -70,6 +70,11 @@ https://mcp.repliers.io
 
 When you connect for the first time you'll be prompted to log in via your Repliers account. After that, your API key is automatically used for all requests.
 
+> **One-time re-login when the hosted server moves to OAuth 2.1.** The login flow is changing so
+> that command-line and desktop clients — Claude Code, Claude Desktop, Codex — can sign in at all,
+> which they currently cannot. Existing connectors will ask you to log in once more after the
+> change; nothing else about them changes, and no API key needs re-issuing.
+
 ---
 
 ### Option 2 — Self-Hosted (simple, no auth)

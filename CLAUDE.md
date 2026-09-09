@@ -38,7 +38,14 @@ npm run generate             # regenerate tools/…/generated/ from openapi.json
 | `FEEDBACK_PROMPT_LEVEL` | Nudge eagerness: `high` (default) / `low` / `off` |
 | `FEEDBACK_CONSENT` | `auto` (default) = technical failures are reported without asking; `always-ask` = no report may be sent without the user's agreement, in every category. Rewrites golden rule 3, the send-feedback description, and every nudge note |
 | `PORT`, `RESULTS_PER_PAGE` | HTTP port (3001), page size |
-| `OAUTH_*`, `PROPELAUTH_API_KEY` | Hosted-deployment auth only; irrelevant locally |
+| `MCP_PUBLIC_URL` | Hosted only. This server's canonical URI, e.g. `https://mcp.repliers.io`. Access tokens are accepted only if their audience names it, so it must come from configuration and never from request headers. **Startup fails without it** |
+| `OAUTH_BASE_URL` | Hosted only. PropelAuth auth URL, e.g. `https://auth.repliers.com`. **Startup fails without it** |
+| `PROPELAUTH_MCP_INTROSPECT_CLIENT_ID`, `…_SECRET` | Hosted only. Created in PropelAuth's MCP → Request Validation section; used to introspect access tokens. **Startup fails without them** |
+| `PROPELAUTH_API_KEY` | Hosted only. Reads `repliers_api_key` from PropelAuth user metadata via the backend user API |
+| `OAUTH_MCP_ISSUER` | Hosted only. The authorization server named in protected-resource metadata (default `${OAUTH_BASE_URL}/oauth/2.1`) |
+| `OAUTH_INTROSPECTION_ENDPOINT` | Hosted only. Default `${OAUTH_BASE_URL}/oauth/2.1/introspect` |
+| `OAUTH_REQUIRE_AUDIENCE` | Escape hatch, default `true`. `false` accepts tokens whose audience does not name this server — read [docs/oauth21/design.md](docs/oauth21/design.md) Q7 before using it |
+| `OAUTH_INTROSPECTION_CACHE_TTL_MS` | Default `60000`. Caps how long an introspection verdict is reused; never past the token's own `exp`. The Repliers key is resolved per request regardless |
 
 Restart the server after every `.env` change.
 
