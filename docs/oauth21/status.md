@@ -1,12 +1,12 @@
 # OAuth 2.1 migration — status
 
-**Last updated:** 2026-09-09
+**Last updated:** 2026-09-09 (post-review)
 **Branch:** `feat/oauth21-resource-server` (branched from `fix/mcp-oauth-discovery`)
 
 ## Phase A complete
 
 Everything that does not depend on the PropelAuth dashboard is implemented and green.
-`npm test` passes offline: 131 tests, no network required.
+`npm test` passes offline: 158 tests, no network required.
 
 | Delivered | |
 |---|---|
@@ -50,6 +50,48 @@ something adjacent, which is why the probe exists.
    Task 15 for the cutover.
 7. Run [test-plan.md](test-plan.md) — the day-of procedure, including the rollback and the
    reason `OAUTH_CLIENT_SECRET` must be rotated last rather than first.
+
+## Review outcome
+
+**Security review: no HIGH or MEDIUM findings.** An independent pass read the diff, the SDK's
+`requireBearerAuth`, and both Streamable HTTP transports, then ran adversarial probes against a
+live server: another user's session id, `__proto__` as a session id, a tool call smuggled inside a
+JSON-RPC batch, a token with no `sub`, a multi-audience token, trailing-slash variants. All three
+central properties held — a foreign audience cannot open the server, one user cannot drive
+another's session, a read-only token cannot mutate.
+
+**Code review found one break that would have reached production.** `requireBearerAuth` uses its
+`requiredScopes` list both to enforce and to advertise, and a client treats the advertised `scope`
+as the set to request. Asking for `mcp:read` — the minimum needed to connect — meant every user
+received a read-only token and every mutating tool was permanently uncallable, with no recovery
+path because our insufficient-scope refusal travels inside a JSON-RPC response rather than a 403.
+Fixed in `93b7399`. The login rehearsal had missed it because it only called a read-only tool; it
+now asserts the requested scope and calls a mutating one.
+
+Ten smaller findings were fixed in `6ad9d00` and `39a7abb`: audience read from `aud` and
+`resource` together rather than whichever came first, scope arrays understood, non-access tokens
+refused, the audience escaped before it reaches a response header, an unusable cache TTL no longer
+disabling the cache silently, `MCP_PUBLIC_URL` validated as a URL, `PROPELAUTH_API_KEY` made fatal
+at startup, `sub` encoded into the backend URL, deadlines on both upstream calls, the verdict cache
+bounded, and `tools/list` filtered to what the token can call.
+
+One finding was **rejected**: hoisting `discoverTools()` out of the per-session path. It is a real
+improvement but identical on `main` — pre-existing, and not this branch's business.
+
+## Residual risks
+
+**The suite runs against `@modelcontextprotocol/sdk` 1.29.0, not the 1.30.0 that `package.json`
+pins.** `package-lock.json` still carries `^1.9.0`, and `npm install` is refused here because
+`engine-strict` is on and this machine has Node 26.7.0 against a declared floor of 26.8. Run
+`npm install` on a machine that meets the floor and re-run the suite before deploying — the scope
+fix turns on client-side behaviour in exactly that package. The fix is written to survive either
+behaviour (a challenge that names no scope leaves the client with `scopes_supported`), but that is
+reasoning, not a measurement.
+
+**A stray `REPLIERS_API_KEY` in the hosted environment silently disables everything.**
+`selfHosted` is derived from it, and it gates the auth chain *and* the new fatal startup checks.
+This is unchanged from `main`, and [test-plan.md](test-plan.md) B1 catches it — `/health` must
+report `oauth_enabled: true` — but it is worth knowing that the check exists for this reason.
 
 ## Deviations from the plan
 
