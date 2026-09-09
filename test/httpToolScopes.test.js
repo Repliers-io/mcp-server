@@ -72,3 +72,33 @@ test("scopes gate mutating tools", async (t) => {
     assert.doesNotMatch(text, /mcp:write/, text);
   });
 });
+
+/**
+ * Self-hosted and stdio deployments have no per-user identity: the environment key is the only
+ * authority and there are no scopes to check. The whole path hangs on the scope check being
+ * skipped when authInfo is absent, so it gets a test — otherwise the failure mode is that every
+ * tool call in every self-hosted deployment is refused, and nothing here would notice.
+ */
+test("a self-hosted server enforces no scopes", async (t) => {
+  const repliers = await startFakeRepliersApi();
+  const mcp = await startMcpServer({
+    propelAuthPort: 1,
+    repliersApiPort: repliers.port,
+    env: { REPLIERS_API_KEY: "self-hosted-key" },
+  });
+
+  t.after(async () => {
+    mcp.close();
+    await repliers.close();
+  });
+
+  const session = await openSession(mcp.port);
+  const { text } = await callTool(mcp.port, {
+    sessionId: session,
+    name: "delete-client",
+    args: { clientId: "1" },
+  });
+
+  assert.doesNotMatch(text, /scope/, text);
+  assert.equal(repliers.lastKey(), "self-hosted-key");
+});
