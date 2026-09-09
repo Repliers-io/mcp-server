@@ -146,6 +146,24 @@ async function setupServerHandlers(server, tools) {
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
     }
 
+    // Scope enforcement lives here rather than in the HTTP middleware because only here is the
+    // tool name known: reaching the server needs mcp:read, calling something that mutates needs
+    // mcp:write as well. `scopes` is absent in stdio and self-hosted mode, where there is no
+    // per-user identity and the environment key is the only authority.
+    const scopes = extra?.authInfo?.scopes;
+    if (scopes) {
+      const needed = requiredScope(toolName);
+      if (!scopes.includes(needed)) {
+        console.error(
+          `[ERROR] ${toolName} needs ${needed}, token carries: ${scopes.join(" ") || "(none)"}`
+        );
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `The tool ${toolName} requires the ${needed} scope, which this authorization does not carry.`
+        );
+      }
+    }
+
     const args = request.params.arguments;
     const requiredParameters =
       tool.definition?.function?.parameters?.required || [];
