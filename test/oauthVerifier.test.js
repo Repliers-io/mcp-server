@@ -161,6 +161,74 @@ test("the cache never outlives the token", async () => {
   assert.equal(calls.length, 2);
 });
 
+// An MCP client opens several connections at once, all carrying the same freshly issued token,
+// and none of them find anything in the cache. Without in-flight deduplication that burst turns
+// into one introspection call per request against an endpoint whose rate limits are unknown.
+test("concurrent requests with one cold token cause a single introspection", async () => {
+  let open;
+  const gate = new Promise((resolve) => (open = resolve));
+  const calls = [];
+  const claims = {
+    active: true,
+    sub: "user-alice",
+    scope: "mcp:read",
+    aud: "https://mcp.test/mcp",
+    exp: future(),
+  };
+
+  const verifier = createIntrospectionVerifier({
+    introspectionEndpoint: "https://auth.test/oauth/2.1/introspect",
+    clientId: "introspect-id",
+    clientSecret: "introspect-secret",
+    audiences: AUDIENCES,
+    resolveApiKey: async (sub) => ({ key: `KEY-${sub}`, lookupFailed: false, reason: null }),
+    fetchImpl: async () => {
+      calls.push(1);
+      await gate;
+      return { ok: true, json: async () => claims };
+    },
+  });
+
+  const inFlight = Promise.all([
+    verifier.verifyAccessToken("tok"),
+    verifier.verifyAccessToken("tok"),
+    verifier.verifyAccessToken("tok"),
+  ]);
+  open();
+  const results = await inFlight;
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(
+    results.map((r) => r.extra.userId),
+    ["user-alice", "user-alice", "user-alice"]
+  );
+});
+
+// A failed introspection must not be remembered as an answer: the next request has to ask again.
+test("a failed introspection is not left behind as a pending answer", async () => {
+  let attempt = 0;
+  const { verifier } = verifierWith(null, {
+    fetchImpl: async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error("ECONNREFUSED");
+      return {
+        ok: true,
+        json: async () => ({
+          active: true,
+          sub: "user-alice",
+          scope: "mcp:read",
+          aud: "https://mcp.test/mcp",
+          exp: future(),
+        }),
+      };
+    },
+  });
+
+  await assert.rejects(() => verifier.verifyAccessToken("tok"), /ECONNREFUSED/);
+  const info = await verifier.verifyAccessToken("tok");
+  assert.equal(info.extra.userId, "user-alice");
+});
+
 test("an unreachable introspection endpoint is a server error, not a 401", async () => {
   const { verifier } = verifierWith(null, {
     fetchImpl: async () => {
