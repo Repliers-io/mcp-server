@@ -114,6 +114,38 @@ test("a second call inside the TTL does not hit the endpoint again", async () =>
   assert.equal(calls.length, 1);
 });
 
+// The introspection verdict may be cached; the Repliers key may not. This server resolves the
+// key per request so that a key revoked or rotated in PropelAuth stops working on the very next
+// call, and caching it alongside the verdict would quietly keep a revoked key alive for a minute.
+test("the key is resolved on every call even when the verdict is cached", async () => {
+  const resolved = [];
+  let key = "KEY-1";
+  const { verifier, calls } = verifierWith(
+    {
+      active: true,
+      sub: "user-alice",
+      scope: "mcp:read",
+      aud: "https://mcp.test/mcp",
+      exp: future(),
+    },
+    {
+      resolveApiKey: async (sub) => {
+        resolved.push(sub);
+        return { key, lookupFailed: false, reason: null };
+      },
+    }
+  );
+
+  const first = await verifier.verifyAccessToken("tok");
+  key = "KEY-2";
+  const second = await verifier.verifyAccessToken("tok");
+
+  assert.equal(calls.length, 1, "the introspection verdict should still be cached");
+  assert.deepEqual(resolved, ["user-alice", "user-alice"]);
+  assert.equal(first.extra.repliersApiKey, "KEY-1");
+  assert.equal(second.extra.repliersApiKey, "KEY-2");
+});
+
 test("the cache never outlives the token", async () => {
   let clock = 1_000_000;
   const exp = Math.floor(clock / 1000) + 5; // five seconds of life left

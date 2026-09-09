@@ -42,9 +42,9 @@ export function defaultUsers() {
 }
 
 /**
- * Stands in for PropelAuth: /oauth/userinfo plus the backend user API that mcpServer.js
- * reads repliers_api_key from. Serves `users` live, so rotateKey() is visible to the very
- * next request the server makes.
+ * Stands in for PropelAuth: RFC 7662 introspection plus the backend user API that
+ * mcpServer.js reads repliers_api_key from. Serves `users` live, so rotateKey() is visible to
+ * the very next request the server makes.
  */
 export async function startFakePropelAuth(users = defaultUsers()) {
   // `audience` is what this fake mints tokens for. startMcpServer points it at the server whose
@@ -52,7 +52,6 @@ export async function startFakePropelAuth(users = defaultUsers()) {
   // resource, which is the case audience validation exists to reject.
   const state = { rejectBackend: false, audience: "https://unset.invalid/mcp" };
   const server = http.createServer((req, res) => {
-    const bearer = (req.headers.authorization || "").replace(/^Bearer /, "");
     const url = new URL(req.url, "http://localhost");
 
     // RFC 7662 introspection, as PropelAuth's MCP authorization server serves it.
@@ -82,14 +81,6 @@ export async function startFakePropelAuth(users = defaultUsers()) {
         );
       });
       return;
-    }
-
-    if (url.pathname === "/oauth/userinfo") {
-      const user = users[bearer];
-      if (!user) return res.writeHead(401).end("{}");
-      return res
-        .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ sub: user.sub, email: user.email, email_verified: true }));
     }
 
     const backend = url.pathname.match(/^\/api\/backend\/v1\/user\/(.+)$/);
@@ -166,7 +157,7 @@ function freePort() {
  * Boots the real mcpServer.js in hosted mode.
  * The empty REPLIERS_API_KEY matters: process.loadEnvFile never overrides an already-set
  * variable, so it keeps the repo's own .env from flipping the server into self-hosted mode
- * (which would drop verifyOAuthToken from the chain entirely). Same trick pins the API host.
+ * (which would drop token verification from the chain entirely). Same trick pins the API host.
  */
 export async function startMcpServer({ propelAuth, propelAuthPort, repliersApiPort, env = {} }) {
   const port = await freePort();
@@ -187,7 +178,6 @@ export async function startMcpServer({ propelAuth, propelAuthPort, repliersApiPo
       PORT: String(port),
       MCP_PUBLIC_URL: publicUrl,
       OAUTH_BASE_URL: oauthBase,
-      OAUTH_USERINFO_ENDPOINT: `${oauthBase}/oauth/userinfo`,
       OAUTH_INTROSPECTION_ENDPOINT: `${oauthBase}/oauth/2.1/introspect`,
       PROPELAUTH_MCP_INTROSPECT_CLIENT_ID: "introspect-id",
       PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET: "introspect-secret",
