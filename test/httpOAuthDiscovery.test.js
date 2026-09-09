@@ -70,8 +70,11 @@ test("protected resource metadata points at PropelAuth's MCP authorization serve
 
 /**
  * RFC 9728 §5.1: an unauthenticated request must come back with a pointer to the metadata, or a
- * client has no way to learn where to log in. The MCP specification additionally asks for the
- * required scopes, so a client requests the least privilege that will work.
+ * client has no way to learn where to log in.
+ *
+ * The challenge deliberately names no `scope`. A client treats an advertised scope as the set to
+ * request and falls back to the metadata's `scopes_supported` only when none is named, so
+ * advertising the minimum needed to connect would hand every user a read-only token.
  */
 test("an unauthenticated request is told where to authenticate", async (t) => {
   const propelAuth = await startFakePropelAuth();
@@ -94,7 +97,8 @@ test("an unauthenticated request is told where to authenticate", async (t) => {
       challenge,
       new RegExp(`resource_metadata="${origin}/\\.well-known/oauth-protected-resource/mcp"`)
     );
-    assert.match(challenge, /scope="mcp:read"/);
+    // Naming a scope here narrows what the client asks for; the metadata carries the full set.
+    assert.doesNotMatch(challenge, /scope=/);
   });
 
   await t.test("401 on / points at the root metadata document", async () => {

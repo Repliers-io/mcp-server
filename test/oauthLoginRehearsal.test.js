@@ -139,4 +139,18 @@ test("a real MCP client can discover, register, log in and call a tool", async (
     await client.callTool({ name: "search-locations", arguments: {} });
     assert.equal(repliers.lastKey(), "KEY-ALICE-1");
   });
+
+  await t.test("the login asked for every scope the server supports", async () => {
+    // A client takes the `scope` of the 401 challenge as authoritative and asks for exactly that,
+    // falling back to scopes_supported only when the challenge names none. Advertising the
+    // minimum needed to connect therefore hands every user a token that can never write.
+    const authorize = propelAuth.seen.authorize.at(-1);
+    assert.equal(authorize.scope, "mcp:read mcp:write");
+  });
+
+  await t.test("a mutating tool is callable after a normal login", async () => {
+    const result = await client.callTool({ name: "delete-client", arguments: { clientId: "1" } });
+    const text = JSON.stringify(result);
+    assert.doesNotMatch(text, /mcp:write/, text);
+  });
 });

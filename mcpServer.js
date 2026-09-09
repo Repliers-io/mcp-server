@@ -18,7 +18,7 @@ import { buildServerInstructions } from "./lib/serverInstructions.js";
 import { apiBaseUrl } from "./lib/apiBase.js";
 import { createIntrospectionVerifier } from "./lib/oauthVerifier.js";
 import { createKeyResolver } from "./lib/repliersKey.js";
-import { SCOPE_READ, requiredScope } from "./lib/scopes.js";
+import { requiredScope } from "./lib/scopes.js";
 import {
   allowedAudiences,
   protectedResourceDocument,
@@ -440,6 +440,15 @@ async function run() {
        * point at the metadata document describing the resource that was actually asked for:
        * RFC 9728 derives the document's address from the resource path, and a client that
        * follows the wrong pointer learns nothing.
+       *
+       * No `requiredScopes` here, deliberately. requireBearerAuth uses that list for two things
+       * at once — what it enforces, and what it advertises in the challenge's `scope` — and a
+       * client treats the advertised value as the set to request, falling back to the metadata's
+       * `scopes_supported` only when the challenge names none. Asking for the minimum needed to
+       * connect therefore handed every user a read-only token and made every mutating tool
+       * permanently uncallable, with no way back: our insufficient-scope refusal travels inside
+       * a JSON-RPC response, so the client's step-up path never fires. Scopes are enforced per
+       * tool call instead, where the tool name says which one is needed.
        */
       const authChain = (resourcePath) =>
         selfHosted
@@ -447,7 +456,6 @@ async function run() {
           : [
               requireBearerAuth({
                 verifier,
-                requiredScopes: [SCOPE_READ],
                 resourceMetadataUrl: resourceMetadataUrl(resourcePath),
               }),
               requireRepliersKey,
