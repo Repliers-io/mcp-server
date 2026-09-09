@@ -63,7 +63,7 @@ which cannot be pre-registered — so they cannot log in at all, and no code cha
 |---|---|---|
 | Compatibility | **Hard cutover** | One validation path, no legacy branch. The audience requirement is met without exceptions. Cost: the claude.ai connector must be re-authorized once. |
 | Architecture | **Thin resource server on the SDK** | `requireBearerAuth` plus a custom `OAuthTokenVerifier`. Header parsing, expiry, 401/403 and `WWW-Authenticate` come from the SDK instead of being reproduced from memory. |
-| Scopes | **Two: `mcp:read` / `mcp:write`** | A real boundary (a read token cannot delete a client) at the cost of two dashboard entries. Clients request everything in `scopes_supported` by default, so finer granularity would only pay off through PropelAuth org roles. |
+| Scopes | **None** | Every tool acts as the authenticated user with that user's own Repliers key, so a scope divides nothing the account does not already hold. Clients request everything a server advertises anyway. |
 | Rejected | Own authorization server proxying PropelAuth | Removes the dashboard dependency but is the confused-deputy pattern the spec warns against, needs its own client and token storage, and still hits the legacy provider's lack of public-client support. |
 
 ---
@@ -91,7 +91,6 @@ is identical, and `authorization_servers` comes from `OAUTH_MCP_ISSUER`:
 {
   "resource": "https://mcp.repliers.io/mcp",
   "authorization_servers": ["https://auth.repliers.com/oauth/2.1"],
-  "scopes_supported": ["mcp:read", "mcp:write"],
   "bearer_methods_supported": ["header"],
   "resource_name": "Repliers MCP Server"
 }
@@ -146,37 +145,17 @@ paths and the spec tells clients to send the most specific URI they can.
 
 ### 4.4 Scopes
 
-- Both scopes are enforced in the `CallTool` handler, where the tool name is known: a call needs
-  `mcp:write` whenever `toolAnnotations(name)?.readOnlyHint !== true`, and `mcp:read` otherwise.
-- A tool matching no annotation rule is treated as a writer — fail-closed.
-- `tools/list` is filtered to what the token can call, so a capability is never offered before it
-  turns out to be unusable.
+**None.** Authentication is the only boundary: a token that proves who the user is may call every
+tool, because every tool already acts as that user, with that user's own Repliers key. There is
+nothing a scope could protect that the account does not already own.
 
-**Nothing is enforced at the HTTP layer, deliberately.** `requireBearerAuth`'s `requiredScopes`
-list is used for two things at once: what it enforces, and what it advertises in the challenge's
-`scope`. A client treats an advertised scope as the set to request and consults the metadata's
-`scopes_supported` only when the challenge names none — so requiring `mcp:read` at the door also
-told every client to ask for only that, handing every user a token that could never write. There
-was no recovery from it either, because our insufficient-scope refusal travels inside a JSON-RPC
-response rather than a 403, so the client's step-up path never fires.
+An earlier revision defined `mcp:read` / `mcp:write` and enforced them per tool call. It bought
+no protection in practice — clients request every scope a server advertises, so every real login
+carried both — while costing a dashboard step, an open question, a plan fork, and one bug that
+made every mutating tool permanently uncallable. Removed.
 
-The cost of moving both checks into the tool call is that a token carrying no usable scope can
-still open a session and list an empty roster. It cannot reach a tool or a key.
-
-`lib/tools.js:26-35` already derives `readOnlyHint` from the tool-name prefix, and does so by name, so
-the mapping survives `npm run generate`. No per-tool marking is needed.
-
-**Known deviation from the specification.** The spec asks a server to answer an insufficient-scope
-failure with `HTTP 403` and a `WWW-Authenticate: Bearer error="insufficient_scope"` challenge, so a
-client can start a step-up authorization. A missing `mcp:write` is refused as an `McpError` inside
-the JSON-RPC response instead, because the tool name — the only thing that determines whether write
-is needed — is known only after the request has been accepted and routed into an established
-session. Answering 403 at that point would fail the whole transport rather than the one call.
-
-The cost is that a client cannot automatically request the missing scope; the refusal names it in
-prose instead. In practice clients request every scope in `scopes_supported` at login, so a token
-missing `mcp:write` means an administrator restricted it deliberately, and silently escalating back
-is not the behaviour to want. Revisit if MCP defines per-call scope challenges.
+The metadata therefore publishes no `scopes_supported`, and the 401 challenge names no `scope`,
+which leaves a client asking for the authorization server's default.
 
 ### 4.5 Repliers API key
 
@@ -248,7 +227,6 @@ Requires one real login (e.g. from Claude Code) plus one introspection response.
 
 | # | Question | Why |
 |---|---|---|
-| Q9 | Can arbitrary scope names (`mcp:read`, `mcp:write`) be defined, or is the set or syntax fixed? | Decides §4.4 entirely |
 | **Q10** | Is DCR open or gated by an initial access token — and do dynamically registered clients still have to pass the redirect-URI whitelist? | If the whitelist also applies to DCR, loopback callbacks with a random port *and* path fail again, i.e. we land back in today's breakage by a new route. Second-highest risk after Q5 |
 | Q11 | Is there a rate limit on `/oauth/2.1/introspect`? | The 60-second cache TTL is a guess, not a calculation |
 | Q12 | Does enabling MCP Auth disturb the existing OIDC login used by other Repliers applications on this tenant? | We are changing a shared tenant |
@@ -270,7 +248,6 @@ distinguishes them.
 1. **MCP → Enable MCP** for the Prod environment (and Test/Staging if they exist — prefer testing there first).
 2. **Enable Dynamic Client Registration.** Without it, CLI and desktop MCP clients still cannot log in.
 3. Whitelist MCP clients: the Claude / ChatGPT / Cursor templates plus loopback `http://127.0.0.1:*/callback`.
-4. Define scopes `mcp:read` and `mcp:write` (User scopes).
 5. **Request Validation → Create Credentials** — hand the introspection Client ID and Secret to the server team.
 6. Set the session duration policy.
 7. **Rotate the old `OAUTH_CLIENT_SECRET` — but only after the cutover is confirmed.** The

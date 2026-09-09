@@ -52,7 +52,6 @@ test("each path gets its own document naming its own resource", () => {
   assert.equal(root.resource, "https://mcp.repliers.io");
   assert.equal(mcp.resource, "https://mcp.repliers.io/mcp");
   assert.deepEqual(mcp.authorization_servers, ["https://auth.repliers.com/oauth/2.1"]);
-  assert.deepEqual(mcp.scopes_supported, ["mcp:read", "mcp:write"]);
   assert.deepEqual(mcp.bearer_methods_supported, ["header"]);
 });
 

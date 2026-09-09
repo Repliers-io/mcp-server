@@ -74,7 +74,7 @@ console.log(
   `INFO  CIMD  client_id_metadata_document_supported: ${metadata.client_id_metadata_document_supported ?? "absent"}`
 );
 console.log(
-  `INFO  Q9    scopes_supported: ${JSON.stringify(metadata.scopes_supported ?? null)}`
+  `INFO        scopes_supported: ${JSON.stringify(metadata.scopes_supported ?? null)} (unused; this server defines no scopes)`
 );
 
 if (!token) {

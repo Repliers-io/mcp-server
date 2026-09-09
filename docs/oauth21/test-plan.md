@@ -8,7 +8,7 @@
 
 The offline suite already proves our half of the contract, including a complete login driven by
 the SDK's own OAuth client (`test/oauthLoginRehearsal.test.js`): discovery, dynamic registration
-with a fresh loopback callback, PKCE, the resource parameter, introspection, scopes and a tool
+with a fresh loopback callback, PKCE, the resource parameter, introspection and a tool
 call. **Do not re-verify those here.**
 
 This plan covers only what a fake authorization server cannot answer:
@@ -40,7 +40,6 @@ node scripts/probe-propelauth.mjs https://auth.repliers.com "<access-token>"
 | Q1, Q2, Q3, `exp` fail | The tenant is not usable | **Stop.** Do not deploy. Escalate |
 | Q5 fails | `sub` is not the backend user id | Take [plan.md](./plan.md) Task 12 before deploying — nobody can be served otherwise |
 | Q6/Q7 fail | No audience binding | Take Task 13, and record the accepted risk |
-| Q9 shows other scope names | Dashboard vocabulary differs | Take Task 11 |
 | Q11 shows a tight rate limit | | Take Task 14 |
 
 Paste the full output into [status.md](./status.md) either way.
@@ -68,7 +67,7 @@ three 404s.
 curl -si -X POST https://mcp.repliers.io/mcp -H 'content-type: application/json' -d '{}' | grep -i www-authenticate
 ```
 
-Expected: `Bearer error="invalid_token", …, scope="mcp:read", resource_metadata="https://mcp.repliers.io/.well-known/oauth-protected-resource/mcp"`.
+Expected: `Bearer error="invalid_token", …, resource_metadata="https://mcp.repliers.io/.well-known/oauth-protected-resource/mcp"` — and no `scope`, which this server does not define.
 
 ### B3. A foreign token is refused
 
@@ -85,15 +84,14 @@ and the migration's central guarantee is absent — treat as a rollback trigger.
 | **Codex CLI** | Rust implementation, not covered by any test we have; it is what rejected our metadata before | Login completes without "issuer does not match" |
 
 For each: one `search-listings` call, then one CRM read, then one write (`create-client` or
-`send-feedback`) to confirm `mcp:write` was granted.
+`send-feedback`).
 
-### B5. Provisioning and scopes still behave
+### B5. Provisioning still behaves
 
 | Case | Expected |
 |---|---|
 | Account with no `repliers_api_key` in PropelAuth metadata | **403** `account_not_provisioned` |
 | Wrong `PROPELAUTH_API_KEY` on the server | **503** `key_lookup_failed`, never 403 |
-| Token granted `mcp:read` only, calling `delete-client` | Refused, naming `mcp:write`; the Repliers API is never called |
 | Key rotated in PropelAuth mid-session | Next tool call uses the new key, within the introspection TTL at worst |
 
 ## 5. Acceptance

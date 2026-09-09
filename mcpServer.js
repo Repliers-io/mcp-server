@@ -18,7 +18,6 @@ import { buildServerInstructions } from "./lib/serverInstructions.js";
 import { apiBaseUrl } from "./lib/apiBase.js";
 import { createIntrospectionVerifier } from "./lib/oauthVerifier.js";
 import { createKeyResolver } from "./lib/repliersKey.js";
-import { requiredScope } from "./lib/scopes.js";
 import {
   allowedAudiences,
   protectedResourceDocument,
@@ -129,16 +128,10 @@ async function transformTools(tools) {
 async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
 
-  // List tools handler. The roster is narrowed to what this authorization can actually call:
-  // offering a capability the token cannot use is worse than not offering it, because the agent
-  // picks the tool and collects arguments from the user before discovering it was never callable.
-  // Unfiltered in stdio and self-hosted mode, where authInfo is absent and there are no scopes.
-  server.setRequestHandler(ListToolsRequestSchema, async (_request, extra) => {
-    const scopes = extra?.authInfo?.scopes;
-    const visible = scopes
-      ? tools.filter((tool) => scopes.includes(requiredScope(tool.definition.function.name)))
-      : tools;
-    return { tools: await transformTools(visible) };
+  // List tools handler. Every authenticated caller sees the whole roster: a token that opens
+  // the server can call anything on it.
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools: await transformTools(tools) };
   });
 
   // Call tool handler
@@ -151,24 +144,6 @@ async function setupServerHandlers(server, tools) {
     if (!tool) {
       console.error(`[ERROR] Tool not found: ${toolName}`);
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
-    }
-
-    // Scope enforcement lives here rather than in the HTTP middleware because only here is the
-    // tool name known: reaching the server needs mcp:read, calling something that mutates needs
-    // mcp:write as well. `scopes` is absent in stdio and self-hosted mode, where there is no
-    // per-user identity and the environment key is the only authority.
-    const scopes = extra?.authInfo?.scopes;
-    if (scopes) {
-      const needed = requiredScope(toolName);
-      if (!scopes.includes(needed)) {
-        console.error(
-          `[ERROR] ${toolName} needs ${needed}, token carries: ${scopes.join(" ") || "(none)"}`
-        );
-        throw new McpError(
-          ErrorCode.InvalidRequest,
-          `The tool ${toolName} requires the ${needed} scope, which this authorization does not carry.`
-        );
-      }
     }
 
     const args = request.params.arguments;
@@ -451,14 +426,11 @@ async function run() {
        * RFC 9728 derives the document's address from the resource path, and a client that
        * follows the wrong pointer learns nothing.
        *
-       * No `requiredScopes` here, deliberately. requireBearerAuth uses that list for two things
-       * at once — what it enforces, and what it advertises in the challenge's `scope` — and a
-       * client treats the advertised value as the set to request, falling back to the metadata's
-       * `scopes_supported` only when the challenge names none. Asking for the minimum needed to
-       * connect therefore handed every user a read-only token and made every mutating tool
-       * permanently uncallable, with no way back: our insufficient-scope refusal travels inside
-       * a JSON-RPC response, so the client's step-up path never fires. Scopes are enforced per
-       * tool call instead, where the tool name says which one is needed.
+       * No `requiredScopes`: this server defines no scopes. A token that authenticates a user
+       * can call every tool, because every tool acts as that user with that user's own Repliers
+       * key. requireBearerAuth would also advertise whatever is listed here in the challenge,
+       * and a client asks for exactly that — naming a scope the authorization server does not
+       * define would break the login for no gain.
        */
       const authChain = (resourcePath) =>
         selfHosted

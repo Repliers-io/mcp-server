@@ -57,7 +57,6 @@ test("protected resource metadata points at PropelAuth's MCP authorization serve
     const doc = await (await fetch(`${origin}/.well-known/oauth-protected-resource/mcp`)).json();
     assert.equal(doc.resource, `${origin}/mcp`);
     assert.deepEqual(doc.authorization_servers, [upstream]);
-    assert.deepEqual(doc.scopes_supported, ["mcp:read", "mcp:write"]);
     assert.deepEqual(doc.bearer_methods_supported, ["header"]);
   });
 
@@ -72,9 +71,9 @@ test("protected resource metadata points at PropelAuth's MCP authorization serve
  * RFC 9728 §5.1: an unauthenticated request must come back with a pointer to the metadata, or a
  * client has no way to learn where to log in.
  *
- * The challenge deliberately names no `scope`. A client treats an advertised scope as the set to
- * request and falls back to the metadata's `scopes_supported` only when none is named, so
- * advertising the minimum needed to connect would hand every user a read-only token.
+ * The challenge names no `scope`, because this server defines none: a token that opens it can
+ * call anything on it. A client asks for whatever the challenge advertises, so naming one here
+ * would send it looking for a scope the authorization server has never heard of.
  */
 test("an unauthenticated request is told where to authenticate", async (t) => {
   const propelAuth = await startFakePropelAuth();
@@ -97,7 +96,6 @@ test("an unauthenticated request is told where to authenticate", async (t) => {
       challenge,
       new RegExp(`resource_metadata="${origin}/\\.well-known/oauth-protected-resource/mcp"`)
     );
-    // Naming a scope here narrows what the client asks for; the metadata carries the full set.
     assert.doesNotMatch(challenge, /scope=/);
   });
 

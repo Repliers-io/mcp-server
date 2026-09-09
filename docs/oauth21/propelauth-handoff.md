@@ -46,10 +46,9 @@ tells the two apart — please run it rather than reporting from the dashboard U
    log in, which is the entire point of the exercise.
 3. **Whitelist MCP clients:** the Claude / ChatGPT / Cursor templates, plus loopback
    `http://127.0.0.1:*/callback`.
-4. **Define user scopes `mcp:read` and `mcp:write`.**
-5. **Request Validation → Create Credentials.** Send us the Client ID and Secret — see §4.
-6. **Set the session duration policy.**
-7. **Do not rotate the old `OAUTH_CLIENT_SECRET` yet.** The endpoint we are deleting served
+4. **Request Validation → Create Credentials.** Send us the Client ID and Secret — see §4.
+5. **Set the session duration policy.**
+6. **Do not rotate the old `OAUTH_CLIENT_SECRET` yet.** The endpoint we are deleting served
    it publicly, so treat it as leaked and plan to rotate it — but the *currently deployed*
    server needs it to serve the claude.ai connector. Rotating it before the new flow is
    confirmed working destroys our rollback path. We will come back and ask for this as the
@@ -63,7 +62,6 @@ code before deploying, so a guess is worse than "I don't know".
 | # | Question | What it decides |
 |---|---|---|
 | **Q10** | Is DCR open, or gated behind an initial access token — and does the redirect-URI whitelist still apply to dynamically registered clients? | If the whitelist applies to DCR too, loopback callbacks fail again and we are back at today's breakage by a new route. Highest risk on this page |
-| Q9 | Can arbitrary scope names be defined (`mcp:read`, `mcp:write`), or is the set or the syntax fixed? | Whether our scope vocabulary has to change |
 | Q11 | Is there a rate limit on `POST /oauth/2.1/introspect`, and what is it? | We validate every token against that endpoint and cache the verdict for 60s. That number is currently a guess |
 | Q12 | Does enabling MCP Auth disturb the existing OIDC login used by other Repliers applications on this tenant? | We believe it does not — different subsystem — but we have not verified it, and this is a shared production tenant. If a Test environment exists, this is the reason to use it first |
 
@@ -88,12 +86,38 @@ For a Test/Staging environment, substitute its auth URL in both commands.
 
 | Item | Notes |
 |---|---|
-| Introspection **Client ID** and **Secret** from checklist item 5 | Through a secret manager or password vault, please — not email or chat |
+| Introspection **Client ID** and **Secret** from checklist item 4 | Through a secret manager or password vault, please — not email or chat |
 | The output of both commands in §3 | Verbatim, including which environment it was run against |
 | Answers to **Q9–Q12** | §2 |
 | Confirmation that the existing `PROPELAUTH_API_KEY` still reads user metadata | We use it to look up each user's `repliers_api_key`; it is unchanged by this work, but a startup check now depends on it |
 
-## 5. What happens next, and what is safe
+## 5. The other half — the deployment environment
+
+We do not have access to the environment of `mcp.repliers.io`. **If it is not yours either,
+please point us at whoever owns it** — we need that person before the cutover, not on the day
+of it. Nothing below blocks the checklist above; both can proceed in parallel.
+
+**Before anything changes, that person should capture the current values of six variables:**
+
+```
+OAUTH_AUTHORIZATION_ENDPOINT   OAUTH_TOKEN_ENDPOINT   OAUTH_USERINFO_ENDPOINT
+OAUTH_CLIENT_ID                OAUTH_CLIENT_SECRET    OAUTH_REDIRECT_URIS
+```
+
+The new version removes them, and they cannot be reconstructed from the source. They are what
+the currently deployed server uses to serve the claude.ai connector, so they *are* the rollback
+path. Copied somewhere safe now, while they still exist, they cost nothing; missing on the day,
+they cost the connector.
+
+**One thing worth checking straight away:** `REPLIERS_API_KEY` must **not** be set in that
+environment. It switches the server into self-hosted mode, where every caller is served with one
+shared key and authentication is skipped entirely. This is true of the currently deployed version
+too, so it is worth a look regardless of this migration.
+
+The new variables to set — including the introspection credentials from checklist item 4 — we
+will hand over at the cutover.
+
+## 6. What happens next, and what is safe
 
 Completing this checklist is **safe for the live claude.ai connector** — subject to Q12. The
 deployed server is unchanged and keeps using the old flow; enabling MCP Auth only makes new

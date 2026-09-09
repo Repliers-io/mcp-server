@@ -10,7 +10,6 @@ Everything that does not depend on the PropelAuth dashboard is implemented and g
 
 | Delivered | |
 |---|---|
-| `lib/scopes.js` | `mcp:read` / `mcp:write`, mapped per tool from the roster's existing `readOnlyHint` |
 | `lib/protectedResource.js` | Canonical URI, accepted audiences, both RFC 9728 documents |
 | `lib/repliersKey.js` | Repliers key lookup, quarantined because Q5 is unverified |
 | `lib/oauthVerifier.js` | RFC 7662 introspection, audience binding, verdict cache |
@@ -95,6 +94,14 @@ This is unchanged from `main`, and [test-plan.md](test-plan.md) B1 catches it �
 report `oauth_enabled: true` — but it is worth knowing that the check exists for this reason.
 
 ## Deviations from the plan
+
+**Scopes were removed after Phase A.** `mcp:read` / `mcp:write` divided nothing: every tool acts
+as the authenticated user with that user's own Repliers key, and clients request every scope a
+server advertises, so every real login carried both. They cost a dashboard step, question Q9, plan
+Task 11, and the bug in `93b7399`. `lib/scopes.js`, `test/scopes.test.js` and
+`test/httpToolScopes.test.js` are deleted; the metadata publishes no `scopes_supported` and the
+challenge names no `scope`. **Plan Task 11 is void** — ignore it if the probe still prints Q9.
+
 
 **The introspection cache holds only the verdict, not the key** (plan Task 4). As written,
 the verifier cached the whole `AuthInfo`, which includes `repliersApiKey` — and that broke
