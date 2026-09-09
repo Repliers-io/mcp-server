@@ -2,8 +2,10 @@ FROM node:26.8-alpine AS builder
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 
-ENTRYPOINT ["node", "mcpServer.js"]
+EXPOSE 3001
+
+ENTRYPOINT ["node", "mcpServer.js", "--http"]

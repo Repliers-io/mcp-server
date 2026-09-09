@@ -17,7 +17,7 @@
     "express": "5.2.1"
   },
   "engines": {
-    "node": ">=v26.8.x",
+    "node": "^v26.8.x",
     "npm": ">=11.16.0"
   },
   "author": "",
