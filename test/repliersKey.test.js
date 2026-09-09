@@ -34,11 +34,25 @@ test("an account without a key is not a lookup failure", async () => {
   assert.match(result.reason, /no repliers_api_key/);
 });
 
-test("a rejected backend call is a lookup failure", async () => {
+// Both are lookup failures, but different people fix them, and the only place that distinction
+// can be made is here: 401 is our credential being refused, 404 is the token's `sub` not being
+// an id this API knows. A bare status leaves whoever reads the log on cutover day guessing.
+test("a refused credential names PROPELAUTH_API_KEY", async () => {
   const resolve = resolverWith(async () => ({ ok: false, status: 401 }));
   const result = await resolve("user-alice");
   assert.equal(result.lookupFailed, true);
   assert.match(result.reason, /401/);
+  assert.match(result.reason, /PROPELAUTH_API_KEY/);
+  assert.match(result.reason, /environment/);
+});
+
+test("an unknown user points at the sub assumption, not at the key", async () => {
+  const resolve = resolverWith(async () => ({ ok: false, status: 404 }));
+  const result = await resolve("user-alice");
+  assert.equal(result.lookupFailed, true);
+  assert.match(result.reason, /404/);
+  assert.match(result.reason, /Q5/);
+  assert.doesNotMatch(result.reason, /rejected/);
 });
 
 test("a thrown fetch is a lookup failure, not a crash", async () => {
