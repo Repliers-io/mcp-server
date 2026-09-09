@@ -122,8 +122,14 @@ contract. It plugs straight into `requireBearerAuth` and is unit-testable withou
 ```
 
 **Cache:** `Map` keyed by SHA-256 of the token, TTL `min(exp - now, 60s)`. Without it every MCP
-request costs two round trips to PropelAuth — MCP clients send the header on *every* request,
+request costs a round trip to PropelAuth — MCP clients send the header on *every* request,
 including SSE reconnects.
+
+Only the introspection verdict is cached. The Repliers API key is resolved on every request,
+because this server already guarantees that a key rotated or revoked upstream takes effect on the
+next call rather than at the end of a session — `mcpServer.js` documents it and
+`test/httpPerRequestApiKey.test.js` enforces it. Caching the key alongside the verdict would
+quietly keep a revoked key alive for the length of the TTL.
 
 ### 4.3 Canonical resource URI
 
