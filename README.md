@@ -42,7 +42,7 @@ If NLP isn't enabled, the other three tools (`get_listing`, `Market_Statistics`,
 
 ## Prerequisites
 
-- [Node.js v22+](https://nodejs.org/)
+- [Node.js](https://nodejs.org/) — the version in `.nvmrc` (`engine-strict` is enabled, so `npm install` refuses other majors)
 
 ```sh
 npm install
@@ -258,7 +258,7 @@ Drop the file in `custom/` and it will be picked up automatically on the next se
 
 ```sh
 docker build -t repliers-mcp .
-docker run --env-file .env -p 3001:3001 repliers-mcp --sse
+docker run --env-file .env -p 3001:3001 repliers-mcp
 ```
 
 ---
