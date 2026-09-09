@@ -48,3 +48,19 @@ test("a self-hosted server needs none of them", async (t) => {
   const health = await (await fetch(`http://127.0.0.1:${mcp.port}/health`)).json();
   assert.equal(health.oauth_enabled, false);
 });
+
+/**
+ * The worst available misconfiguration, because it does not look like one: the server starts,
+ * /health reports ok, and every anonymous caller is served with one shared Repliers key.
+ */
+test("a hosted environment with a stray REPLIERS_API_KEY refuses to start", async (t) => {
+  const propelAuth = await startFakePropelAuth();
+  t.after(async () => {
+    await propelAuth.close();
+  });
+
+  await assert.rejects(
+    () => startMcpServer({ propelAuth, env: { REPLIERS_API_KEY: "left-behind" } }),
+    /REPLIERS_API_KEY is set alongside/
+  );
+});

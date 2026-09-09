@@ -377,3 +377,19 @@ test("an unreachable introspection endpoint is a server error, not a 401", async
   });
   await assert.rejects(() => verifier.verifyAccessToken("tok"), /ECONNREFUSED/);
 });
+
+// A bare status number is unreadable on cutover day: three new secrets are in play and none of
+// them is named. 401 is ours, 404 is the tenant's.
+test("a refused introspection names the introspection credentials", async () => {
+  const { verifier } = verifierWith(null, {
+    fetchImpl: async () => ({ ok: false, status: 401 }),
+  });
+  await assert.rejects(() => verifier.verifyAccessToken("tok"), /PROPELAUTH_MCP_INTROSPECT_CLIENT_ID/);
+});
+
+test("a missing introspection endpoint points at MCP Auth, not at our credentials", async () => {
+  const { verifier } = verifierWith(null, {
+    fetchImpl: async () => ({ ok: false, status: 404 }),
+  });
+  await assert.rejects(() => verifier.verifyAccessToken("tok"), /MCP Auth is not enabled/);
+});

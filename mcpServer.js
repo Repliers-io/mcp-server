@@ -240,6 +240,27 @@ async function run() {
       const selfHosted = !!process.env.REPLIERS_API_KEY;
       console.error(`[DEBUG] Mode: ${selfHosted ? 'self-hosted (env key)' : 'hosted (PropelAuth)'}`);
 
+      // REPLIERS_API_KEY alone means self-hosted, which is a legitimate deployment. Together with
+      // the hosted credentials it means a key was left behind in an environment meant to
+      // authenticate users: the server would start, report healthy, and serve every anonymous
+      // caller with that one key. Refuse rather than let it pass as a working deployment.
+      if (selfHosted) {
+        const hosted = [
+          "MCP_PUBLIC_URL",
+          "PROPELAUTH_MCP_INTROSPECT_CLIENT_ID",
+          "PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET",
+          "PROPELAUTH_API_KEY",
+        ].filter((name) => process.env[name]);
+        if (hosted.length > 0) {
+          console.error(
+            `[FATAL] REPLIERS_API_KEY is set alongside ${hosted.join(", ")}. That combination ` +
+              `disables authentication entirely and serves every caller with the one key. Remove ` +
+              `REPLIERS_API_KEY for a hosted deployment, or the hosted variables for a self-hosted one.`
+          );
+          process.exit(1);
+        }
+      }
+
       const app = express();
       app.use(express.json());
 

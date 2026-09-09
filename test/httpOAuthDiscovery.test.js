@@ -124,8 +124,17 @@ test("an unauthenticated request is told where to authenticate", async (t) => {
 test("a self-hosted server advertises no authorization server", async (t) => {
   // With its own REPLIERS_API_KEY there is no OAuth in the chain at all. Publishing protected
   // resource metadata there would send clients off on a login flow this server never asked for.
+  // Cleared, not merely ignored: carrying REPLIERS_API_KEY *and* the hosted credentials is a
+  // misconfiguration the server now refuses to start on, so a real self-hosted deployment has
+  // neither set.
   const mcp = await startMcpServer({
-    env: { REPLIERS_API_KEY: "self-hosted-key" },
+    env: {
+      REPLIERS_API_KEY: "self-hosted-key",
+      MCP_PUBLIC_URL: "",
+      PROPELAUTH_MCP_INTROSPECT_CLIENT_ID: "",
+      PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET: "",
+      PROPELAUTH_API_KEY: "",
+    },
   });
   t.after(() => mcp.close());
 
