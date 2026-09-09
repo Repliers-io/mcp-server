@@ -31,7 +31,8 @@ No authorization server metadata at any address. MCP Auth is not enabled on this
 tenant -- stop here and see docs/oauth21/design.md §6 for the dashboard checklist.
 ```
 
-The checklist for whoever owns the tenant is [design.md §6](design.md). MCP Auth is a
+The checklist for whoever owns the tenant is [design.md §6](design.md), packaged for sending
+as [propelauth-handoff.md](propelauth-handoff.md). MCP Auth is a
 separate feature from the OIDC login the tenant already runs; a previous attempt enabled
 something adjacent, which is why the probe exists.
 
@@ -80,13 +81,13 @@ improvement but identical on `main` — pre-existing, and not this branch's busi
 
 ## Residual risks
 
-**The suite runs against `@modelcontextprotocol/sdk` 1.29.0, not the 1.30.0 that `package.json`
-pins.** `package-lock.json` still carries `^1.9.0`, and `npm install` is refused here because
-`engine-strict` is on and this machine has Node 26.7.0 against a declared floor of 26.8. Run
-`npm install` on a machine that meets the floor and re-run the suite before deploying — the scope
-fix turns on client-side behaviour in exactly that package. The fix is written to survive either
-behaviour (a challenge that names no scope leaves the client with `scopes_supported`), but that is
-reasoning, not a measurement.
+**Resolved: the suite runs against the pinned SDK.** It briefly ran against a stale
+`node_modules` holding 1.29.0 while `package.json` pins 1.30.0. `npm install --engine-strict=false`
+fixed it — `engines` is a declaration, not a technical incompatibility, and this machine's Node
+26.7.0 has no bearing on whether the tests are valid. `package.json` and `package-lock.json` were
+already correct and are unchanged; only the installed tree was stale. All 158 tests pass against
+1.30.0, so the scope fix is measured against the client code that will actually ship rather than
+argued from it.
 
 **A stray `REPLIERS_API_KEY` in the hosted environment silently disables everything.**
 `selfHosted` is derived from it, and it gates the auth chain *and* the new fatal startup checks.

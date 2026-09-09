@@ -146,14 +146,22 @@ paths and the spec tells clients to send the most specific URI they can.
 
 ### 4.4 Scopes
 
-- `mcp:read` is enforced at the HTTP layer: `requireBearerAuth({ requiredScopes: ["mcp:read"] })`.
-- `mcp:write` is enforced in the `CallTool` handler, where the tool name is known. Required whenever
-  `toolAnnotations(name)?.readOnlyHint !== true`.
+- Both scopes are enforced in the `CallTool` handler, where the tool name is known: a call needs
+  `mcp:write` whenever `toolAnnotations(name)?.readOnlyHint !== true`, and `mcp:read` otherwise.
 - A tool matching no annotation rule is treated as a writer — fail-closed.
+- `tools/list` is filtered to what the token can call, so a capability is never offered before it
+  turns out to be unusable.
 
-`mcp:read` is therefore the floor for reaching the server at all: a token carrying only `mcp:write`
-is refused at the HTTP layer. That is intentional and costs nothing in practice, since clients
-request every scope in `scopes_supported`. A write-only token is not a case worth designing for.
+**Nothing is enforced at the HTTP layer, deliberately.** `requireBearerAuth`'s `requiredScopes`
+list is used for two things at once: what it enforces, and what it advertises in the challenge's
+`scope`. A client treats an advertised scope as the set to request and consults the metadata's
+`scopes_supported` only when the challenge names none — so requiring `mcp:read` at the door also
+told every client to ask for only that, handing every user a token that could never write. There
+was no recovery from it either, because our insufficient-scope refusal travels inside a JSON-RPC
+response rather than a 403, so the client's step-up path never fires.
+
+The cost of moving both checks into the tool call is that a token carrying no usable scope can
+still open a session and list an empty roster. It cannot reach a tool or a key.
 
 `lib/tools.js:26-35` already derives `readOnlyHint` from the tool-name prefix, and does so by name, so
 the mapping survives `npm run generate`. No per-tool marking is needed.
@@ -254,8 +262,10 @@ response, printed and read.
 
 ## 6. PropelAuth dashboard checklist
 
-For whoever owns the tenant. A previous attempt enabled something adjacent — plain OIDC login is a
-different feature from MCP Auth, and the verification in §6.1 is what distinguishes them.
+For whoever owns the tenant; [propelauth-handoff.md](propelauth-handoff.md) is this section
+rewritten as a self-contained page to send them. A previous attempt enabled something adjacent
+— plain OIDC login is a different feature from MCP Auth, and the verification in §6.1 is what
+distinguishes them.
 
 1. **MCP → Enable MCP** for the Prod environment (and Test/Staging if they exist — prefer testing there first).
 2. **Enable Dynamic Client Registration.** Without it, CLI and desktop MCP clients still cannot log in.
