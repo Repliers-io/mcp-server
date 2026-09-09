@@ -184,9 +184,13 @@ function freePort() {
  * variable, so it keeps the repo's own .env from flipping the server into self-hosted mode
  * (which would drop token verification from the chain entirely). Same trick pins the API host.
  */
-export async function startMcpServer({ propelAuth, propelAuthPort, repliersApiPort, env = {} }) {
+export async function startMcpServer({ propelAuth, repliersApiPort, env = {} }) {
   const port = await freePort();
-  const oauthBase = `http://127.0.0.1:${propelAuth?.port ?? propelAuthPort}`;
+  // A self-hosted server runs no token verification, so it never reaches this host. Omitting the
+  // fake is how a suite asks for that mode; there is deliberately no port-only form, because one
+  // that skipped setAudience below would produce a server that 401s everything for no visible
+  // reason.
+  const oauthBase = propelAuth ? `http://127.0.0.1:${propelAuth.port}` : "http://127.0.0.1:1";
   const publicUrl = `http://127.0.0.1:${port}`;
 
   // The audience the server will accept is derived from MCP_PUBLIC_URL, so the fake has to mint

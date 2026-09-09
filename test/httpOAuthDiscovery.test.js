@@ -127,7 +127,6 @@ test("a self-hosted server advertises no authorization server", async (t) => {
   // With its own REPLIERS_API_KEY there is no OAuth in the chain at all. Publishing protected
   // resource metadata there would send clients off on a login flow this server never asked for.
   const mcp = await startMcpServer({
-    propelAuthPort: 1,
     env: { REPLIERS_API_KEY: "self-hosted-key" },
   });
   t.after(() => mcp.close());

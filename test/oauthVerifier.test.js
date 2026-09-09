@@ -313,6 +313,62 @@ test("a failed introspection is not left behind as a pending answer", async () =
   assert.equal(info.extra.userId, "user-alice");
 });
 
+// Without a deadline a half-open connection to PropelAuth stalls for undici's default of five
+// minutes, and in-flight deduplication makes every request carrying that token join the same
+// hung promise rather than retry.
+test("the introspection request carries a deadline", async () => {
+  let seen;
+  const { verifier } = verifierWith(
+    { active: true, sub: "user-alice", scope: "mcp:read", aud: "https://mcp.test/mcp", exp: future() },
+    {
+      fetchImpl: async (url, init) => {
+        seen = init.signal;
+        return { ok: true, json: async () => ({ active: false }) };
+      },
+    }
+  );
+
+  await assert.rejects(() => verifier.verifyAccessToken("tok"));
+  assert.ok(seen instanceof AbortSignal, "no abort signal was attached to the introspection call");
+});
+
+// Tokens rotate on every refresh, so a long-running process would otherwise accumulate one
+// permanent cache entry per token per user per refresh interval.
+test("the verdict cache is bounded", async () => {
+  const calls = [];
+  const claims = (sub) => ({
+    active: true,
+    sub,
+    scope: "mcp:read",
+    aud: "https://mcp.test/mcp",
+    exp: future(),
+  });
+
+  const verifier = createIntrospectionVerifier({
+    introspectionEndpoint: "https://auth.test/oauth/2.1/introspect",
+    clientId: "introspect-id",
+    clientSecret: "introspect-secret",
+    audiences: AUDIENCES,
+    maxCacheEntries: 3,
+    resolveApiKey: async (sub) => ({ key: `KEY-${sub}`, lookupFailed: false, reason: null }),
+    fetchImpl: async (url, init) => {
+      const token = new URLSearchParams(init.body).get("token");
+      calls.push(token);
+      return { ok: true, json: async () => claims(`user-${token}`) };
+    },
+  });
+
+  for (const token of ["a", "b", "c", "d", "e"]) await verifier.verifyAccessToken(token);
+  const beforeReplay = calls.length;
+
+  // The most recent entries are still cached; the oldest have been evicted rather than kept.
+  await verifier.verifyAccessToken("e");
+  assert.equal(calls.length, beforeReplay, "the newest entry should still be cached");
+
+  await verifier.verifyAccessToken("a");
+  assert.equal(calls.length, beforeReplay + 1, "the oldest entry should have been evicted");
+});
+
 test("an unreachable introspection endpoint is a server error, not a 401", async () => {
   const { verifier } = verifierWith(null, {
     fetchImpl: async () => {

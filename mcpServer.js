@@ -129,10 +129,17 @@ async function transformTools(tools) {
 async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
 
-  // List tools handler
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: await transformTools(tools),
-  }));
+  // List tools handler. The roster is narrowed to what this authorization can actually call:
+  // offering a capability the token cannot use is worse than not offering it, because the agent
+  // picks the tool and collects arguments from the user before discovering it was never callable.
+  // Unfiltered in stdio and self-hosted mode, where authInfo is absent and there are no scopes.
+  server.setRequestHandler(ListToolsRequestSchema, async (_request, extra) => {
+    const scopes = extra?.authInfo?.scopes;
+    const visible = scopes
+      ? tools.filter((tool) => scopes.includes(requiredScope(tool.definition.function.name)))
+      : tools;
+    return { tools: await transformTools(visible) };
+  });
 
   // Call tool handler
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {

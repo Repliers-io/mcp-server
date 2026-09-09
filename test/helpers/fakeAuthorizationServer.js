@@ -128,10 +128,13 @@ export async function handleAuthorizationServer(req, res, state) {
     // RFC 8707: the audience is bound to the resource the client asked for. Whether the live
     // PropelAuth does this is design.md Q7 — here it is assumed, so the rest of the chain can be
     // exercised, and the test asserts what the client requested rather than what we hoped.
+    // Every login is alice. A suite that needs another identity should add a setter rather than
+    // rely on a fallback: a silently wrong identity would make such a test pass for the wrong
+    // reason.
     state.issued.set(accessToken, {
       active: true,
-      sub: state.loginAs ?? "user-alice",
-      username: state.loginEmail ?? "alice@example.test",
+      sub: "user-alice",
+      username: "alice@example.test",
       client_id: body.client_id ?? record.clientId,
       scope: record.scope ?? "mcp:read mcp:write",
       aud: body.resource ?? record.resource,

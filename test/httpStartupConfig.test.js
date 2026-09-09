@@ -34,7 +34,6 @@ test("a self-hosted server needs none of them", async (t) => {
   // Its own REPLIERS_API_KEY is the only authority, so there is no token verification to
   // configure. Demanding OAuth credentials here would break every local and stdio deployment.
   const mcp = await startMcpServer({
-    propelAuthPort: 1,
     env: {
       REPLIERS_API_KEY: "self-hosted-key",
       MCP_PUBLIC_URL: "",

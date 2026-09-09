@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   callTool,
+  mcpFetch,
   openSession,
   startFakePropelAuth,
   startFakeRepliersApi,
@@ -23,6 +24,34 @@ test("scopes gate mutating tools", async (t) => {
     mcp.close();
     await propelAuth.close();
     await repliers.close();
+  });
+
+  // Offering a capability that cannot be used is worse than not offering it: the agent picks the
+  // tool, gathers arguments from the user, and only then learns it was never callable.
+  await t.test("a read-only token is not shown tools it cannot call", async () => {
+    const session = await openSession(mcp.port, "readonly-token");
+    const res = await mcpFetch(mcp.port, {
+      token: "readonly-token",
+      sessionId: session,
+      body: { jsonrpc: "2.0", id: 7, method: "tools/list", params: {} },
+    });
+    const text = await res.text();
+
+    assert.match(text, /search-locations/, "read tools must still be listed");
+    assert.doesNotMatch(text, /delete-client/, "a write tool was offered to a read-only token");
+  });
+
+  await t.test("a full token is shown the whole roster", async () => {
+    const session = await openSession(mcp.port, "alice-token");
+    const res = await mcpFetch(mcp.port, {
+      token: "alice-token",
+      sessionId: session,
+      body: { jsonrpc: "2.0", id: 8, method: "tools/list", params: {} },
+    });
+    const text = await res.text();
+
+    assert.match(text, /search-locations/);
+    assert.match(text, /delete-client/);
   });
 
   await t.test("a read-only token may search", async () => {
@@ -82,7 +111,6 @@ test("scopes gate mutating tools", async (t) => {
 test("a self-hosted server enforces no scopes", async (t) => {
   const repliers = await startFakeRepliersApi();
   const mcp = await startMcpServer({
-    propelAuthPort: 1,
     repliersApiPort: repliers.port,
     env: { REPLIERS_API_KEY: "self-hosted-key" },
   });
