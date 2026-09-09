@@ -16,6 +16,7 @@ Everything that does not depend on the PropelAuth dashboard is implemented and g
 | `lib/oauthVerifier.js` | RFC 7662 introspection, audience binding, verdict cache |
 | `mcpServer.js` | Resource server: `requireBearerAuth` + `requireRepliersKey`, scope check on tool calls, three endpoints deleted, fatal startup checks |
 | `scripts/probe-propelauth.mjs` | The Q1–Q8 gate |
+| `test/oauthLoginRehearsal.test.js` | A complete login driven by the SDK's own OAuth client against a fake authorization server |
 
 ## Blocked on the PropelAuth dashboard
 
@@ -47,6 +48,8 @@ something adjacent, which is why the probe exists.
    connector too.
 6. Otherwise take the forks the verdicts select: [plan.md](plan.md) Tasks 11–14, then
    Task 15 for the cutover.
+7. Run [test-plan.md](test-plan.md) — the day-of procedure, including the rollback and the
+   reason `OAUTH_CLIENT_SECRET` must be rotated last rather than first.
 
 ## Deviations from the plan
 

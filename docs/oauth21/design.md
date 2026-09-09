@@ -251,8 +251,11 @@ different feature from MCP Auth, and the verification in §6.1 is what distingui
 4. Define scopes `mcp:read` and `mcp:write` (User scopes).
 5. **Request Validation → Create Credentials** — hand the introspection Client ID and Secret to the server team.
 6. Set the session duration policy.
-7. **Rotate the old `OAUTH_CLIENT_SECRET`.** The server's `/oauth/register` shim served it publicly to
-   anyone naming a registered redirect URI. Treat it as leaked.
+7. **Rotate the old `OAUTH_CLIENT_SECRET` — but only after the cutover is confirmed.** The
+   server's `/oauth/register` shim served it publicly to anyone naming a registered redirect URI,
+   so treat it as leaked. It is nonetheless the last step, not an early one: the old deployment
+   needs that secret to serve claude.ai, so rotating it before the new flow is verified destroys
+   the rollback path. See [test-plan.md §6](test-plan.md).
 
 ### 6.1 Verification — both must return 200 and a non-empty match
 
