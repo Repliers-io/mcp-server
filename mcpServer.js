@@ -23,6 +23,12 @@ import {
   protectedResourceDocument,
   resourceMetadataUrl,
 } from "./lib/protectedResource.js";
+import {
+  SERVER_NAME,
+  SERVER_VERSION,
+  faviconPng,
+  serverImplementation,
+} from "./lib/serverIdentity.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -82,7 +88,32 @@ if (missingVars.length > 0) {
 // them. They are fatal there rather than a warning — a server that starts without the
 // credentials it needs answers 500 to every request, which hides the cause behind a symptom.
 
-const SERVER_NAME = "Repliers MCP Server";
+/**
+ * Errors the Streamable HTTP transport raises are requests it has already answered with a 4xx:
+ * a header we do not speak, a body that is not JSON-RPC, a protocol revision our SDK does not
+ * know. They are the client's fault, but the SDK reports them through the same `server.onerror`
+ * hook it uses for genuine server faults, carrying no status code and nothing else to tell them
+ * apart. Logged as "[SERVER ERROR]" with a full stack they read like an outage, and one client
+ * stuck on a version we do not speak fills the log with them.
+ *
+ * So they are tagged at the transport, whose own onerror the SDK chains ahead of the server's
+ * (see `Protocol.connect`). Where the error came from is the whole test — no matching on message
+ * text, which would stop working, silently, the next time the SDK rewords one.
+ *
+ * The transport can raise a few faults that are genuinely ours, but every one of them needs an
+ * `eventStore`, which this server does not configure. Add one and this needs revisiting.
+ */
+const clientFaults = new WeakSet();
+
+/**
+ * clientInfo is client-controlled JSON, and the lines below are the only attribution a refusal
+ * logged much later carries. Raw, a name carrying newlines forges whole log lines of its own -
+ * including the [FATAL] that log alerting pages on - and an unbounded one is replayed on every
+ * refused request. Collapse control characters, cap the length.
+ */
+function logSafe(value) {
+  return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 64);
+}
 
 // Process event handlers for debugging
 process.on("uncaughtException", (error) => {
@@ -370,17 +401,44 @@ async function run() {
         res.status(200).json({
           status: "ok",
           name: SERVER_NAME,
-          version: "0.1.0",
+          version: SERVER_VERSION,
           mode: "streamable-http",
           oauth_enabled: !selfHosted
         });
       });
 
-      // A batch counts if any member is the initialize: the SDK accepts that shape too.
-      const isInitializeRequest = (body) =>
-        Array.isArray(body)
-          ? body.some((entry) => entry?.method === "initialize")
-          : body?.method === "initialize";
+      // Branding for clients that do not read serverImplementation()'s `icons` yet. Claude.ai
+      // resolves a custom connector's picture by fetching a favicon from the connector's own
+      // host, and answering 404 to every path a resolver probes is why this server showed a
+      // placeholder. Public on purpose: a favicon fetcher carries no bearer token, so anything
+      // inside authChain() would hand it a 401 and a WWW-Authenticate challenge instead.
+      //
+      // Every path serves PNG bytes, `.ico` included — resolvers go by the content type, and a
+      // second encoding of the same logo would be one more thing to keep in step.
+      const iconRoutes = [
+        "/favicon.ico",
+        "/favicon.png",
+        "/icon.png",
+        "/apple-touch-icon.png",
+        "/apple-touch-icon-precomposed.png",
+      ];
+      for (const route of iconRoutes) {
+        app.get(route, (_req, res) => {
+          res
+            .status(200)
+            .type("image/png")
+            .set("Cache-Control", "public, max-age=86400")
+            .send(faviconPng);
+        });
+      }
+
+      /**
+       * The initialize out of a body that may be a lone message or a batch carrying it — the SDK
+       * accepts both (and refuses a batch longer than one itself). Undefined for anything else,
+       * which is how the caller below tells an opening request from a stray one.
+       */
+      const initializeMessage = (body) =>
+        (Array.isArray(body) ? body : [body]).find((entry) => entry?.method === "initialize");
 
       // MCP endpoint — handles all Streamable HTTP transport methods
       async function handleMcpRequest(req, res) {
@@ -417,7 +475,7 @@ async function run() {
           // ahead of the id it belongs to — used to build a Server, discover the whole roster and
           // open a transport before the SDK rejected it as "Server not initialized", leaving a log
           // line with no request to blame and a discarded server behind it.
-          if (!isInitializeRequest(req.body)) {
+          if (!initializeMessage(req.body)) {
             return res.status(400).json({
               jsonrpc: "2.0",
               error: {
@@ -430,13 +488,32 @@ async function run() {
           }
 
           const sessionUserId = selfHosted ? null : req.auth.extra.userId;
-          console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${sessionUserId}`}`);
+
+          // Initialize is the only request that carries clientInfo, and the only one the
+          // transport does not check the protocol version on. Record both here: a client that
+          // then sends a version we do not speak is refused several requests later, and by then
+          // nothing in the log says who it was.
+          const { clientInfo, protocolVersion } = initializeMessage(req.body)?.params ?? {};
+          const client = clientInfo
+            ? `${logSafe(clientInfo.name)}/${logSafe(clientInfo.version)}`
+            : "unnamed client";
+          console.error(
+            `[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${sessionUserId}`}, ` +
+              `client: ${client}, protocol: ${protocolVersion === undefined ? "unspecified" : logSafe(protocolVersion)}`
+          );
 
           const server = new Server(
-            { name: SERVER_NAME, version: "0.1.0" },
+            serverImplementation(),
             { capabilities: { tools: {} }, instructions: buildServerInstructions() }
           );
-          server.onerror = (error) => console.error("[SERVER ERROR]", error);
+          server.onerror = (error) => {
+            if (clientFaults.has(error)) {
+              const who = selfHosted ? client : `${client} (user ${sessionUserId})`;
+              console.error(`[WARN] Refused request from ${who}: ${error.message}`);
+              return;
+            }
+            console.error("[SERVER ERROR]", error);
+          };
 
           const tools = await discoverTools();
           await setupServerHandlers(server, tools);
@@ -452,6 +529,10 @@ async function run() {
               console.error(`[DEBUG] Session closed: ${sid}`);
             },
           });
+
+          // Runs before server.onerror above, which is what makes the tag work. Must be set
+          // before connect(): that is where the SDK captures it.
+          transport.onerror = (error) => clientFaults.add(error);
 
           await server.connect(transport);
           await transport.handleRequest(req, res, req.body);
@@ -500,16 +581,14 @@ async function run() {
         console.error(`[MCP Server]   - GET|POST|DELETE /mcp (active sessions)`);
         console.error(`[MCP Server]   - GET  /health (health check)`);
         console.error(`[MCP Server]   - GET  /.well-known/oauth-protected-resource[/mcp]`);
+        console.error(`[MCP Server]   - GET  ${iconRoutes.join(", ")} (branding)`);
       });
     } else {
       console.error("[DEBUG] Starting stdio mode for Claude Studio");
 
       // Create server instance
       const server = new Server(
-        {
-          name: SERVER_NAME,
-          version: "0.1.0",
-        },
+        serverImplementation(),
         {
           capabilities: {
             tools: {},
