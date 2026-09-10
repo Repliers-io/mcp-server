@@ -138,7 +138,7 @@ dist
 
 # Ignore everything in .vscode folder
 .vscode/*
-.claude
+# .claude
 
 # But include settings.json
 !.vscode/settings.json
