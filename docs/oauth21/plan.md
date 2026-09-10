@@ -1803,9 +1803,6 @@ Message: `docs(oauth21): record the introspection cache TTL and why`
 - [ ] Confirm `docs/oauth21/status.md` records a passing probe
 - [ ] Set the production environment: `MCP_PUBLIC_URL`, `OAUTH_BASE_URL`, the two introspection
       credentials, `PROPELAUTH_API_KEY`, plus any fork variables from Tasks 13–14
-- [ ] Remove the retired variables: `OAUTH_AUTHORIZATION_ENDPOINT`, `OAUTH_TOKEN_ENDPOINT`,
-      `OAUTH_USERINFO_ENDPOINT`, `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_URIS`
-- [ ] Confirm the dashboard owner has rotated the leaked `OAUTH_CLIENT_SECRET`
 - [ ] Deploy
 - [ ] Smoke test, in order:
 

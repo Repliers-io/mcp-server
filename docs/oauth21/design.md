@@ -166,13 +166,13 @@ between "could not ask" (503) and "account has no key" (403) is kept — it is a
 
 ### 4.6 Configuration
 
-| New | Removed |
-|---|---|
-| `MCP_PUBLIC_URL` | `OAUTH_AUTHORIZATION_ENDPOINT` |
-| `PROPELAUTH_MCP_INTROSPECT_CLIENT_ID` | `OAUTH_TOKEN_ENDPOINT` |
-| `PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET` | `OAUTH_USERINFO_ENDPOINT` |
-| `OAUTH_INTROSPECTION_ENDPOINT` (default `${OAUTH_BASE_URL}/oauth/2.1/introspect`) | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` |
-| `OAUTH_MCP_ISSUER` (default `${OAUTH_BASE_URL}/oauth/2.1`) | `OAUTH_REDIRECT_URIS` |
+New variables:
+
+- `MCP_PUBLIC_URL`
+- `PROPELAUTH_MCP_INTROSPECT_CLIENT_ID`
+- `PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET`
+- `OAUTH_INTROSPECTION_ENDPOINT` (default `${OAUTH_BASE_URL}/oauth/2.1/introspect`)
+- `OAUTH_MCP_ISSUER` (default `${OAUTH_BASE_URL}/oauth/2.1`)
 
 In hosted mode, missing introspection credentials must **abort startup**, not print a warning as
 `mcpServer.js:87-90` does today. A server that starts and then answers 500 to every request is the
@@ -250,11 +250,6 @@ distinguishes them.
 3. Whitelist MCP clients: the Claude / ChatGPT / Cursor templates plus loopback `http://127.0.0.1:*/callback`.
 5. **Request Validation → Create Credentials** — hand the introspection Client ID and Secret to the server team.
 6. Set the session duration policy.
-7. **Rotate the old `OAUTH_CLIENT_SECRET` — but only after the cutover is confirmed.** The
-   server's `/oauth/register` shim served it publicly to anyone naming a registered redirect URI,
-   so treat it as leaked. It is nonetheless the last step, not an early one: the old deployment
-   needs that secret to serve claude.ai, so rotating it before the new flow is verified destroys
-   the rollback path. See [test-plan.md §6](test-plan.md).
 
 ### 6.1 Verification — both must return 200 and a non-empty match
 
