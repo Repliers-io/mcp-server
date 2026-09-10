@@ -1,8 +1,8 @@
 # Repliers MCP Server — Agent Instructions
 
-MCP server exposing the Repliers MLS API to AI agents (claude.ai connectors, IDE agents, custom clients). ESM, `@modelcontextprotocol/sdk`. One entry point, two transports: stdio (default) and Streamable HTTP (`node mcpServer.js --http`, endpoint `/mcp` on `PORT`, default 3001). Node version is pinned in `.nvmrc` and `package.json#engines`; `.npmrc` sets `engine-strict`, `ignore-scripts`, `save-exact` and `min-release-age=7`, so lifecycle scripts never run on install and new dependencies get exact versions.
+MCP server exposing the Repliers MLS API to AI agents (claude.ai connectors, IDE agents, custom clients). ESM, `@modelcontextprotocol/sdk`. One entry point, two transports: stdio (default) and Streamable HTTP (`node mcpServer.js --http`, served at both `/mcp` and `/` on `PORT`, default 3001). Node version is pinned in `.nvmrc` and `package.json#engines`; `.npmrc` sets `engine-strict`, `ignore-scripts`, `save-exact` and `min-release-age=7`, so lifecycle scripts never run on install and new dependencies get exact versions.
 
-Scripts are in `package.json`. `npm test` is fully offline — `fetch` is mocked and `test/helpers/` runs a fake authorization server and a hosted-mode server in-process — so a red suite is never "the API is down".
+Scripts are in `package.json`. `npm test` is fully offline — `fetch` is mocked and `test/helpers/` runs a fake authorization server in-process and spawns a real `--http` server against it — so a red suite is never "the API is down".
 
 ## Where work is tracked
 
@@ -41,7 +41,7 @@ Known gap in this server: `Search_Listings` sets no `resultsPerPage`/`fields` on
 | `FEEDBACK_DRY_RUN_LOG` | Path the dry-run cards are mirrored to; defaults to `feedback-cards.log` in the repo root (gitignored) |
 | `FEEDBACK_PROMPT_LEVEL` | Nudge eagerness: `high` (default) / `low` / `off` |
 | `FEEDBACK_CONSENT` | `auto` (default) = technical failures are reported without asking; `always-ask` = no report may be sent without the user's agreement, in every category. Rewrites golden rule 3, the send-feedback description, and every nudge note |
-| `PORT`, `RESULTS_PER_PAGE` | HTTP port (3001), page size |
+| `PORT` | HTTP port (3001) |
 | `MCP_PUBLIC_URL` | Hosted only. This server's canonical URI, e.g. `https://mcp.repliers.io`. Access tokens are accepted only if their audience names it, so it must come from configuration and never from request headers. **Startup fails without it** |
 | `OAUTH_BASE_URL` | Hosted only. PropelAuth auth URL of the matching environment (see Deployment). **Startup fails without it** |
 | `PROPELAUTH_MCP_INTROSPECT_CLIENT_ID`, `…_SECRET` | Hosted only. Created in PropelAuth's MCP → Request Validation section; used to introspect access tokens. **Startup fails without them** |

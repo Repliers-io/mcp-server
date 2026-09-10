@@ -52,23 +52,33 @@ npm install
 
 ## Deployment Options
 
-There are three ways to use this MCP server. Pick the one that fits your setup.
+There are two ways to use this MCP server. Full walkthrough with screenshots: [Setting up Repliers MCP](https://help.repliers.com/en/article/setting-up-repliers-mcp-8mi5t5/) ([video](https://youtu.be/qsKQWsjFDw4)).
+
+| | Hosted (recommended) | Self-hosted |
+| --- | --- | --- |
+| Server to run | none | yours (Node or [Docker](#docker)) |
+| Auth | sign in with your Repliers account | none — API key in the environment |
+| Clients | claude.ai, ChatGPT, any remote-MCP client | Claude Desktop, Postman, any stdio/HTTP client |
 
 ---
 
-### Option 1 — Repliers Hosted MCP (simplest)
+### Option 1 — Repliers Hosted MCP (recommended)
 
-Repliers runs a hosted version of this MCP server. You just point your MCP client at our endpoint — no server to run, no infrastructure to manage.
+Repliers runs this server at **`https://mcp.repliers.io`**. Nothing to install; you link an API key to it and sign in from your client.
 
-**To get access:** contact [Repliers support](https://repliers.com) to have your account configured for the hosted MCP. We'll set up your API key on our end.
+**1. Link your API key to MCP** (self-serve, no support ticket needed):
 
-Once your account is enabled, connect your MCP client to:
+1. Sign in to the [Repliers Developer Portal](https://login.repliers.com/dashboard/apikeys).
+2. Find your API key and click the **MCP** icon next to it.
 
-```
-https://mcp.repliers.io
-```
+Only one API key can be linked to Repliers MCP at a time. For `Search_Listings` the linked key must also have NLP enabled — see [Enabling NLP](#enabling-nlp-for-search_listings).
 
-When you connect for the first time you'll be prompted to log in via your Repliers account. After that, your API key is automatically used for all requests.
+**2. Add the connector in your client:**
+
+- **Claude (claude.ai):** menu → **Customize** → **Connectors** → **Add connector** → URL `https://mcp.repliers.io` → Save.
+- **ChatGPT:** **Settings** → **Connectors** → **Add a custom connector / MCP server** → URL `https://mcp.repliers.io` → Save.
+
+**3. Sign in** with your Repliers account when the client prompts you. After that the linked API key is used for every request; no key ever goes into the client config.
 
 > **One-time re-login when the hosted server moves to OAuth 2.1.** The login flow is changing so
 > that command-line and desktop clients — Claude Code, Claude Desktop, Codex — can sign in at all,
@@ -77,11 +87,19 @@ When you connect for the first time you'll be prompted to log in via your Replie
 
 ---
 
-### Option 2 — Self-Hosted (simple, no auth)
+### Option 2 — Self-Hosted (no auth)
 
-Run the server yourself with your Repliers API key in the environment. No OAuth, no user accounts — just a direct connection.
+Run the server yourself with your Repliers API key in the environment. No OAuth, no user accounts — just a direct connection. Ideal for personal use and internal tools where you don't need per-user authentication.
 
-**1. Create a `.env` file in the project root:**
+**1. Clone and install:**
+
+```sh
+git clone https://github.com/Repliers-io/mcp-server.git
+cd mcp-server
+npm install
+```
+
+**2. Create a `.env` file in the project root:**
 
 ```
 REPLIERS_API_KEY=your-repliers-api-key
@@ -92,27 +110,23 @@ To run against a deployment other than production, add `REPLIERS_API_BASE_URL` (
 `https://api.repliers.io`). It repoints every tool at once, generated and hand-written alike, and
 `refine-search`'s host check moves with it.
 
-**2. Start the server:**
+**3. Start the server** in one of two transports:
 
 ```sh
-node mcpServer.js --http
+node mcpServer.js          # stdio — for Claude Desktop, Postman, and other local clients
+node mcpServer.js --http   # Streamable HTTP on http://localhost:3001/mcp (and /) — for remote-MCP clients
 ```
 
-**3. Connect your MCP client to:**
+#### Claude Desktop (stdio)
 
-```
-http://localhost:3001
-```
-
-This mode is ideal for personal use or internal tools where you don't need per-user authentication.
-
-**To use with Claude Desktop (stdio mode):**
+Get the absolute paths — Claude Desktop does not inherit your shell's `PATH`, so a relative `node` may resolve to an older install:
 
 ```sh
-node mcpServer.js
+which node
+realpath mcpServer.js
 ```
 
-Add to Claude Desktop → Settings → Developers → Edit Config:
+Add to **Claude Desktop → Settings → Developers → Edit Config**:
 
 ```json
 {
@@ -127,6 +141,21 @@ Add to Claude Desktop → Settings → Developers → Edit Config:
   }
 }
 ```
+
+Restart Claude Desktop and confirm the green indicator under **Settings → Developers**. To run the same thing from a container instead, see [Docker](#docker).
+
+#### Postman (stdio, quick tool check)
+
+In [Postman Desktop](https://www.postman.com/downloads/) create a new **MCP Request**, set the type to **STDIO** and the command to `node /absolute/path/to/mcpServer.js`, then **Connect** to browse the tool roster.
+
+#### Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| Hosted: "MCP server not connected" | Link an API key in the Developer Portal — only one key can be linked at a time |
+| Hosted: asked to sign in on every connection | Finish the sign-in flow fully; if it persists, unlink and re-link the API key |
+| Claude Desktop runs an old Node | Use the absolute path from `which node` in `command` |
+| Tools don't appear after editing the config | Restart Claude Desktop; check for the green status under **Settings → Developers** |
 
 ---
 
@@ -256,10 +285,32 @@ Drop the file in `custom/` and it will be picked up automatically on the next se
 
 ## Docker
 
+One image serves both transports; the default command is Streamable HTTP.
+
 ```sh
 docker build -t repliers-mcp .
-docker run --env-file .env -p 3001:3001 repliers-mcp
+
+# Streamable HTTP (default) — endpoint http://localhost:3001/mcp (and /)
+docker run --rm --env-file .env -p 3001:3001 repliers-mcp
+
+# stdio — override the command, keep stdin open, no TTY, no port
+docker run -i --rm --env-file .env repliers-mcp node mcpServer.js
 ```
+
+For a stdio MCP client (Claude Desktop, Cursor, …) point the client at `docker`:
+
+```json
+{
+  "mcpServers": {
+    "repliers": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "--env-file", "/absolute/path/to/.env", "repliers-mcp", "node", "mcpServer.js"]
+    }
+  }
+}
+```
+
+`-i` is required (without it stdin closes and the server exits); `-t` must **not** be set (a TTY corrupts the JSON-RPC stream). The image runs as the unprivileged `node` user and excludes `.env`, `node_modules`, `.git`, `docs` and `test` via `.dockerignore` — configuration comes only from `--env-file` or `-e`.
 
 ---
 
