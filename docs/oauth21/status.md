@@ -48,8 +48,7 @@ something adjacent, which is why the probe exists.
    connector too.
 6. Otherwise take the forks the verdicts select: [plan.md](plan.md) Tasks 11–14, then
    Task 15 for the cutover.
-7. Run [test-plan.md](test-plan.md) — the day-of procedure, including the rollback and the
-   reason `OAUTH_CLIENT_SECRET` must be rotated last rather than first.
+7. Run [test-plan.md](test-plan.md) — the day-of procedure, including the rollback.
 
 ## Review outcome
 

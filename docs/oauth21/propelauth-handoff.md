@@ -48,11 +48,6 @@ tells the two apart — please run it rather than reporting from the dashboard U
    `http://127.0.0.1:*/callback`.
 4. **Request Validation → Create Credentials.** Send us the Client ID and Secret — see §4.
 5. **Set the session duration policy.**
-6. **Do not rotate the old `OAUTH_CLIENT_SECRET` yet.** The endpoint we are deleting served
-   it publicly, so treat it as leaked and plan to rotate it — but the *currently deployed*
-   server needs it to serve the claude.ai connector. Rotating it before the new flow is
-   confirmed working destroys our rollback path. We will come back and ask for this as the
-   last step of the cutover.
 
 ## 2. Questions only the dashboard can answer
 
@@ -96,18 +91,6 @@ For a Test/Staging environment, substitute its auth URL in both commands.
 We do not have access to the environment of `mcp.repliers.io`. **If it is not yours either,
 please point us at whoever owns it** — we need that person before the cutover, not on the day
 of it. Nothing below blocks the checklist above; both can proceed in parallel.
-
-**Before anything changes, that person should capture the current values of six variables:**
-
-```
-OAUTH_AUTHORIZATION_ENDPOINT   OAUTH_TOKEN_ENDPOINT   OAUTH_USERINFO_ENDPOINT
-OAUTH_CLIENT_ID                OAUTH_CLIENT_SECRET    OAUTH_REDIRECT_URIS
-```
-
-The new version removes them, and they cannot be reconstructed from the source. They are what
-the currently deployed server uses to serve the claude.ai connector, so they *are* the rollback
-path. Copied somewhere safe now, while they still exist, they cost nothing; missing on the day,
-they cost the connector.
 
 **One thing worth checking straight away:** `REPLIERS_API_KEY` must **not** be set in that
 environment. It switches the server into self-hosted mode, where every caller is served with one

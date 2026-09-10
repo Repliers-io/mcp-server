@@ -24,8 +24,6 @@ This plan covers only what a fake authorization server cannot answer:
 | Dashboard | [design.md §6](./design.md) complete, in the environment being cut over |
 | Gate | `node scripts/probe-propelauth.mjs https://auth.repliers.com` exits 0 |
 | Deployment | `feat/oauth21-resource-server` merged, **not yet deployed** |
-| Old config saved | See §6 — capture it *before* changing anything |
-| Rotation | `OAUTH_CLIENT_SECRET` **not yet rotated** — see the warning in §6 |
 
 ## 3. Part A — the probe (5 min, no client)
 
@@ -102,25 +100,11 @@ its objection is likely to be about PropelAuth's documents rather than ours.
 
 ## 6. Rollback
 
-> **Rotate `OAUTH_CLIENT_SECRET` last, not first.**
-> [design.md §6](./design.md) lists rotation as a dashboard step because the deleted
-> `/oauth/register` served that secret publicly. But the old code *needs* that secret to serve
-> claude.ai. Rotating it before the cutover is confirmed destroys the rollback path: the old
-> deployment would come back up unable to authenticate anyone. Rotate only after B4 is green.
-
-**Capture the old configuration before touching anything.** These variables are removed by this
-change and cannot be reconstructed from the repository:
-
-```
-OAUTH_AUTHORIZATION_ENDPOINT  OAUTH_TOKEN_ENDPOINT  OAUTH_USERINFO_ENDPOINT
-OAUTH_CLIENT_ID               OAUTH_CLIENT_SECRET   OAUTH_REDIRECT_URIS
-```
-
 **To roll back:**
 
 1. Redeploy the commit that was live before the cutover (`86b8e6a` or whatever `main` pointed at).
-2. Restore the six variables above. `MCP_PUBLIC_URL` and the introspection credentials can stay;
-   the old code ignores them.
+2. Restore the environment configuration that was live before the cutover. `MCP_PUBLIC_URL` and
+   the introspection credentials can stay; the old code ignores them.
 3. Re-authorize the claude.ai connector again — it will be holding a token from the new
    authorization server, which the old code cannot validate.
 
@@ -135,5 +119,5 @@ code — it uses a different PropelAuth subsystem — but confirm this is true r
 ## 7. Recording the result
 
 Update [status.md](./status.md) with: the probe output, which clients logged in, anything B4
-turned up, and whether the secret was rotated. That file is the resume point for whoever picks
+turned up. That file is the resume point for whoever picks
 this up next.
