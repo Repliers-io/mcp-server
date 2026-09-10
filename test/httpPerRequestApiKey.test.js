@@ -14,7 +14,7 @@ test("hosted mode resolves the Repliers key per request, not per session", async
   const propelAuth = await startFakePropelAuth();
   const repliers = await startFakeRepliersApi();
   const mcp = await startMcpServer({
-    propelAuthPort: propelAuth.port,
+    propelAuth,
     repliersApiPort: repliers.port,
   });
 

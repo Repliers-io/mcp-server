@@ -6,36 +6,103 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createAuthorizationServerState,
+  handleAuthorizationServer,
+} from "./fakeAuthorizationServer.js";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** Two tenants of the same PropelAuth instance, each with their own Repliers key. */
 export function defaultUsers() {
   return {
-    "alice-token": { sub: "user-alice", email: "alice@example.test", key: "KEY-ALICE-1" },
-    "bob-token": { sub: "user-bob", email: "bob@example.test", key: "KEY-BOB-1" },
+    "alice-token": {
+      sub: "user-alice",
+      email: "alice@example.test",
+      key: "KEY-ALICE-1",
+      scope: "mcp:read mcp:write",
+    },
+    "bob-token": {
+      sub: "user-bob",
+      email: "bob@example.test",
+      key: "KEY-BOB-1",
+      scope: "mcp:read mcp:write",
+    },
     // Authenticates fine, but was never provisioned with a Repliers key.
-    "keyless-token": { sub: "user-keyless", email: "keyless@example.test", key: null },
+    "keyless-token": {
+      sub: "user-keyless",
+      email: "keyless@example.test",
+      key: null,
+      scope: "mcp:read mcp:write",
+    },
+    // Reaches the server, but may not call anything that mutates.
+    "readonly-token": {
+      sub: "user-readonly",
+      email: "readonly@example.test",
+      key: "KEY-READONLY-1",
+      scope: "mcp:read",
+    },
   };
 }
 
 /**
- * Stands in for PropelAuth: /oauth/userinfo plus the backend user API that mcpServer.js
- * reads repliers_api_key from. Serves `users` live, so rotateKey() is visible to the very
- * next request the server makes.
+ * Stands in for PropelAuth: RFC 7662 introspection plus the backend user API that
+ * mcpServer.js reads repliers_api_key from. Serves `users` live, so rotateKey() is visible to
+ * the very next request the server makes.
+ *
+ * It also carries the authorization-server endpoints (see fakeAuthorizationServer.js) so a real
+ * MCP client can be driven through a complete login. Most suites never touch those; they mint
+ * tokens by naming one of the static fixtures above instead.
  */
 export async function startFakePropelAuth(users = defaultUsers()) {
-  const state = { rejectBackend: false };
-  const server = http.createServer((req, res) => {
-    const bearer = (req.headers.authorization || "").replace(/^Bearer /, "");
+  // `audience` is what this fake mints static-fixture tokens for. startMcpServer points it at
+  // the server whose port it has just allocated; a suite can aim it elsewhere to forge a token
+  // for someone else's resource, which is the case audience validation exists to reject.
+  const state = {
+    rejectBackend: false,
+    audience: "https://unset.invalid/mcp",
+    ...createAuthorizationServerState(),
+  };
+
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
 
-    if (url.pathname === "/oauth/userinfo") {
-      const user = users[bearer];
-      if (!user) return res.writeHead(401).end("{}");
-      return res
-        .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ sub: user.sub, email: user.email, email_verified: true }));
+    if (await handleAuthorizationServer(req, res, state)) return;
+
+    // RFC 7662 introspection, as PropelAuth's MCP authorization server serves it. Tokens minted
+    // by a real login are looked up first; the static fixtures are the fallback.
+    if (url.pathname === "/oauth/2.1/introspect" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const token = new URLSearchParams(body).get("token");
+        const live = state.issued.get(token);
+        if (live) {
+          return res
+            .writeHead(200, { "content-type": "application/json" })
+            .end(JSON.stringify(live));
+        }
+        const user = users[token];
+        if (!user) {
+          return res
+            .writeHead(200, { "content-type": "application/json" })
+            .end(JSON.stringify({ active: false }));
+        }
+        const issued = Math.floor(Date.now() / 1000);
+        return res.writeHead(200, { "content-type": "application/json" }).end(
+          JSON.stringify({
+            active: true,
+            sub: user.sub,
+            username: user.email,
+            client_id: "fake-mcp-client",
+            scope: user.scope,
+            aud: state.audience,
+            iat: issued,
+            exp: issued + 3600,
+          })
+        );
+      });
+      return;
     }
 
     const backend = url.pathname.match(/^\/api\/backend\/v1\/user\/(.+)$/);
@@ -58,12 +125,19 @@ export async function startFakePropelAuth(users = defaultUsers()) {
   });
 
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  state.origin = `http://127.0.0.1:${server.address().port}`;
   return {
     port: server.address().port,
     users,
+    /** Everything a real client sent through the authorization endpoints. */
+    seen: state.seen,
     /** Makes the backend user API reject our PROPELAUTH_API_KEY, as a wrong one would. */
     setBackendRejects(value) {
       state.rejectBackend = value;
+    },
+    /** Mints subsequent tokens for a different resource, i.e. forges a foreign audience. */
+    setAudience(uri) {
+      state.audience = uri;
     },
     rotateKey(sub, key) {
       const user = Object.values(users).find((u) => u.sub === sub);
@@ -108,11 +182,22 @@ function freePort() {
  * Boots the real mcpServer.js in hosted mode.
  * The empty REPLIERS_API_KEY matters: process.loadEnvFile never overrides an already-set
  * variable, so it keeps the repo's own .env from flipping the server into self-hosted mode
- * (which would drop verifyOAuthToken from the chain entirely). Same trick pins the API host.
+ * (which would drop token verification from the chain entirely). Same trick pins the API host.
  */
-export async function startMcpServer({ propelAuthPort, repliersApiPort }) {
+export async function startMcpServer({ propelAuth, repliersApiPort, env = {} }) {
   const port = await freePort();
-  const oauthBase = `http://127.0.0.1:${propelAuthPort}`;
+  // A self-hosted server runs no token verification, so it never reaches this host. Omitting the
+  // fake is how a suite asks for that mode; there is deliberately no port-only form, because one
+  // that skipped setAudience below would produce a server that 401s everything for no visible
+  // reason.
+  const oauthBase = propelAuth ? `http://127.0.0.1:${propelAuth.port}` : "http://127.0.0.1:1";
+  const publicUrl = `http://127.0.0.1:${port}`;
+
+  // The audience the server will accept is derived from MCP_PUBLIC_URL, so the fake has to mint
+  // tokens for the very port we are about to hand the child. A suite that wants a foreign
+  // audience overrides this afterwards with propelAuth.setAudience().
+  propelAuth?.setAudience(`${publicUrl}/mcp`);
+
   const child = spawn(process.execPath, ["mcpServer.js", "--http"], {
     cwd: repoRoot,
     env: {
@@ -120,9 +205,14 @@ export async function startMcpServer({ propelAuthPort, repliersApiPort }) {
       REPLIERS_API_KEY: "",
       REPLIERS_API_BASE_URL: repliersApiPort ? `http://127.0.0.1:${repliersApiPort}` : "",
       PORT: String(port),
+      MCP_PUBLIC_URL: publicUrl,
       OAUTH_BASE_URL: oauthBase,
-      OAUTH_USERINFO_ENDPOINT: `${oauthBase}/oauth/userinfo`,
+      OAUTH_INTROSPECTION_ENDPOINT: `${oauthBase}/oauth/2.1/introspect`,
+      PROPELAUTH_MCP_INTROSPECT_CLIENT_ID: "introspect-id",
+      PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET: "introspect-secret",
       PROPELAUTH_API_KEY: "propelauth-test-key",
+      // Last word, so a suite can flip the server into self-hosted mode.
+      ...env,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -138,7 +228,9 @@ export async function startMcpServer({ propelAuthPort, repliersApiPort }) {
       const res = await fetch(`http://127.0.0.1:${port}/health`);
       if (res.ok) {
         const body = await res.json();
-        assert.equal(body.oauth_enabled, true, `server must be in hosted mode:\n${log}`);
+        if (!("REPLIERS_API_KEY" in env)) {
+          assert.equal(body.oauth_enabled, true, `server must be in hosted mode:\n${log}`);
+        }
         break;
       }
     } catch {

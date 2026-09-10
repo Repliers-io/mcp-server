@@ -16,7 +16,7 @@ test("hosted mode refuses to open a session it cannot serve", async (t) => {
   const propelAuth = await startFakePropelAuth();
   const repliers = await startFakeRepliersApi();
   const mcp = await startMcpServer({
-    propelAuthPort: propelAuth.port,
+    propelAuth,
     repliersApiPort: repliers.port,
   });
 

@@ -9,7 +9,7 @@ import {
 
 test("hosted mode binds MCP sessions to the authenticated caller", async (t) => {
   const propelAuth = await startFakePropelAuth();
-  const mcp = await startMcpServer({ propelAuthPort: propelAuth.port });
+  const mcp = await startMcpServer({ propelAuth });
 
   t.after(async () => {
     mcp.close();
@@ -71,4 +71,28 @@ test("hosted mode binds MCP sessions to the authenticated caller", async (t) => 
     await res.text();
     assert.equal(res.status, 404);
   });
+});
+
+/**
+ * A sessionless POST that is not an initialize used to build a Server, discover the roster and
+ * open a transport before the SDK rejected it deep inside, logging "Server not initialized" with
+ * nothing to say which request caused it. Answer it before any of that work happens.
+ */
+test("a sessionless POST that is not an initialize is refused up front", async (t) => {
+  const propelAuth = await startFakePropelAuth();
+  const mcp = await startMcpServer({ propelAuth });
+  t.after(async () => {
+    mcp.close();
+    await propelAuth.close();
+  });
+
+  const res = await mcpFetch(mcp.port, {
+    token: "alice-token",
+    body: { jsonrpc: "2.0", id: 7, method: "tools/list", params: {} },
+  });
+  const body = await res.json();
+
+  assert.equal(res.status, 400);
+  assert.equal(body.error.code, -32600);
+  assert.match(body.error.message, /initialize/);
 });

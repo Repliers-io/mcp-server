@@ -11,10 +11,18 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
+import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { discoverTools, toolAnnotations } from "./lib/tools.js";
 import { augmentResult } from "./lib/feedbackHints.js";
 import { buildServerInstructions } from "./lib/serverInstructions.js";
 import { apiBaseUrl } from "./lib/apiBase.js";
+import { createIntrospectionVerifier } from "./lib/oauthVerifier.js";
+import { createKeyResolver } from "./lib/repliersKey.js";
+import {
+  allowedAudiences,
+  protectedResourceDocument,
+  resourceMetadataUrl,
+} from "./lib/protectedResource.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -55,12 +63,6 @@ try {
 
 // Verify required environment variables
 const REQUIRED_ENV = [];
-const OAUTH_ENV = [
-  "OAUTH_BASE_URL",
-  "OAUTH_AUTHORIZATION_ENDPOINT",
-  "OAUTH_TOKEN_ENDPOINT",
-  "OAUTH_USERINFO_ENDPOINT"  // Using UserInfo instead of introspection
-];
 
 let missingVars = [];
 REQUIRED_ENV.forEach((env) => {
@@ -70,24 +72,15 @@ REQUIRED_ENV.forEach((env) => {
   }
 });
 
-// Check OAuth variables (warn but don't exit)
-let missingOAuthVars = [];
-OAUTH_ENV.forEach((env) => {
-  if (!process.env[env]) {
-    console.error(`[WARN] Missing OAuth environment variable: ${env}`);
-    missingOAuthVars.push(env);
-  }
-});
-
 if (missingVars.length > 0) {
   console.error("[FATAL] Server cannot start without required variables");
   process.exit(1);
 }
 
-if (missingOAuthVars.length > 0) {
-  console.error("[WARN] OAuth authentication may not work correctly without these variables:");
-  console.error("[WARN]", missingOAuthVars.join(", "));
-}
+// The OAuth variables are checked inside the HTTP branch instead, where we know whether this
+// deployment is hosted at all: a self-hosted server carries REPLIERS_API_KEY and needs none of
+// them. They are fatal there rather than a warning — a server that starts without the
+// credentials it needs answers 500 to every request, which hides the cause behind a symptom.
 
 const SERVER_NAME = "Repliers MCP Server";
 
@@ -135,10 +128,11 @@ async function transformTools(tools) {
 async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
 
-  // List tools handler
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: await transformTools(tools),
-  }));
+  // List tools handler. Every authenticated caller sees the whole roster: a token that opens
+  // the server can call anything on it.
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools: await transformTools(tools) };
+  });
 
   // Call tool handler
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
@@ -246,127 +240,100 @@ async function run() {
       const selfHosted = !!process.env.REPLIERS_API_KEY;
       console.error(`[DEBUG] Mode: ${selfHosted ? 'self-hosted (env key)' : 'hosted (PropelAuth)'}`);
 
+      // REPLIERS_API_KEY alone means self-hosted, which is a legitimate deployment. Together with
+      // the hosted credentials it means a key was left behind in an environment meant to
+      // authenticate users: the server would start, report healthy, and serve every anonymous
+      // caller with that one key. Refuse rather than let it pass as a working deployment.
+      if (selfHosted) {
+        const hosted = [
+          "MCP_PUBLIC_URL",
+          "PROPELAUTH_MCP_INTROSPECT_CLIENT_ID",
+          "PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET",
+          "PROPELAUTH_API_KEY",
+        ].filter((name) => process.env[name]);
+        if (hosted.length > 0) {
+          console.error(
+            `[FATAL] REPLIERS_API_KEY is set alongside ${hosted.join(", ")}. That combination ` +
+              `disables authentication entirely and serves every caller with the one key. Remove ` +
+              `REPLIERS_API_KEY for a hosted deployment, or the hosted variables for a self-hosted one.`
+          );
+          process.exit(1);
+        }
+      }
+
       const app = express();
       app.use(express.json());
 
       const sessions = {}; // sessionId -> { transport, server, userId }
 
-      // OAuth token verification middleware using UserInfo endpoint
-      async function verifyOAuthToken(req, res, next) {
-        const authHeader = req.headers.authorization;
+      // Hosted mode needs credentials it cannot invent. Checked here rather than at load time
+      // because a self-hosted server carries its own REPLIERS_API_KEY and needs none of them.
+      if (!selfHosted) {
+        for (const name of [
+          "MCP_PUBLIC_URL",
+          "OAUTH_BASE_URL",
+          "PROPELAUTH_MCP_INTROSPECT_CLIENT_ID",
+          "PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET",
+          // Without it no account's Repliers key can be read, so every authenticated request
+          // answers 503 — the same start-then-fail-everything shape the others guard against.
+          "PROPELAUTH_API_KEY",
+        ]) {
+          if (!process.env[name]) {
+            console.error(`[FATAL] ${name} is required in hosted mode`);
+            process.exit(1);
+          }
+        }
+      }
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          console.error("[ERROR] Missing or invalid authorization header");
-          return res.status(401).json({
-            error: "unauthorized",
-            message: "Missing or invalid authorization header. Expected: Bearer <token>"
+      // Token validation, as an OAuth 2.1 resource server: introspection against PropelAuth's
+      // MCP authorization server, with the audience checked against our own configured URI.
+      // The SDK's requireBearerAuth owns everything above it — header parsing, expiry, 401 vs
+      // 403, and the WWW-Authenticate challenge — so none of that is reproduced here.
+      const verifier = selfHosted
+        ? null
+        : createIntrospectionVerifier({
+            introspectionEndpoint:
+              process.env.OAUTH_INTROSPECTION_ENDPOINT ||
+              `${process.env.OAUTH_BASE_URL.replace(/\/+$/, "")}/oauth/2.1/introspect`,
+            clientId: process.env.PROPELAUTH_MCP_INTROSPECT_CLIENT_ID,
+            clientSecret: process.env.PROPELAUTH_MCP_INTROSPECT_CLIENT_SECRET,
+            audiences: allowedAudiences(),
+            requireAudience: process.env.OAUTH_REQUIRE_AUDIENCE !== "false",
+            cacheTtlMs: Number(process.env.OAUTH_INTROSPECTION_CACHE_TTL_MS ?? 60_000),
+            resolveApiKey: createKeyResolver({
+              backendBaseUrl: process.env.OAUTH_BASE_URL,
+              apiKey: process.env.PROPELAUTH_API_KEY,
+            }),
+          });
+
+      /**
+       * The provisioning gate, deliberately outside the verifier.
+       *
+       * Hosted mode has no fallback key. Without one, every tool call would still be served,
+       * ship the literal string "undefined" as REPLIERS-API-KEY and come back as a Repliers
+       * 401 — turning our own misconfiguration into what looks like their outage, several
+       * layers away from the cause. Refuse here instead, and keep the two cases apart: "we
+       * could not ask PropelAuth" is ours to fix, "this account has no key" is support's.
+       */
+      function requireRepliersKey(req, res, next) {
+        const { repliersApiKey, keyLookupFailed, keyReason, userId } = req.auth?.extra ?? {};
+        if (repliersApiKey) return next();
+
+        if (keyLookupFailed) {
+          console.error(`[ERROR] Refusing ${userId}: ${keyReason}`);
+          return res.status(503).json({
+            error: "key_lookup_failed",
+            message:
+              "Could not read this account's Repliers API key from PropelAuth. This is a server-side configuration problem, not a problem with the request.",
           });
         }
 
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-        try {
-          // Validate token by calling UserInfo endpoint
-          // If token is valid, we get user data back. If invalid, we get 401.
-          const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT ||
-                                  `${process.env.OAUTH_BASE_URL}/oauth/userinfo`;
-
-          console.error(`[DEBUG] Validating token via UserInfo: ${userInfoEndpoint}`);
-
-          const response = await fetch(userInfoEndpoint, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (!response.ok) {
-            console.error("[ERROR] Token validation failed:", response.status);
-            return res.status(401).json({
-              error: "unauthorized",
-              message: "Token is invalid or expired"
-            });
-          }
-
-          const userInfo = await response.json();
-
-          // Store user info in request for later use
-          req.user = {
-            id: userInfo.sub || userInfo.id || userInfo.user_id,
-            email: userInfo.email,
-            name: userInfo.name,
-            picture: userInfo.picture,
-            emailVerified: userInfo.email_verified,
-            profile: userInfo
-          };
-
-          // Fetch Repliers API key from PropelAuth org metadata. Tracked separately from a
-          // missing key: "we could not ask" and "the account has no key" are different
-          // failures and land on different people.
-          let keyLookupFailed = false;
-          if (req.user.id && process.env.PROPELAUTH_API_KEY) {
-            try {
-              // UserInfo endpoint doesn't include org membership — fetch it from the backend user API
-              const userResponse = await fetch(
-                `${process.env.OAUTH_BASE_URL}/api/backend/v1/user/${req.user.id}`,
-                { headers: { 'Authorization': `Bearer ${process.env.PROPELAUTH_API_KEY}` } }
-              );
-              if (userResponse.ok) {
-                const userData = await userResponse.json();
-                req.user.repliersApiKey = userData.metadata?.repliers_api_key;
-                console.error(`[DEBUG] Repliers API key ${req.user.repliersApiKey ? 'found' : 'not found'} in user metadata`);
-              } else {
-                keyLookupFailed = true;
-                console.error(`[WARN] Could not fetch user from PropelAuth backend: ${userResponse.status}`);
-              }
-            } catch (orgError) {
-              keyLookupFailed = true;
-              console.error('[WARN] Error fetching org metadata:', orgError.message);
-            }
-          } else {
-            keyLookupFailed = true;
-            if (!process.env.PROPELAUTH_API_KEY) console.error('[DEBUG] PROPELAUTH_API_KEY not set, skipping org metadata fetch');
-          }
-
-          // Hosted mode has no fallback key. Without one, every tool call would still be
-          // served, ship the literal string "undefined" as REPLIERS-API-KEY and come back as
-          // a Repliers 401 — turning our own misconfiguration into what looks like their
-          // outage, several layers away from the cause. Refuse here instead, and distinguish
-          // the two cases so the log says who has to fix it.
-          if (!req.user.repliersApiKey) {
-            if (keyLookupFailed) {
-              console.error(`[ERROR] Refusing ${req.user.id}: could not read the Repliers key from PropelAuth`);
-              return res.status(503).json({
-                error: "key_lookup_failed",
-                message: "Could not read this account's Repliers API key from PropelAuth. This is a server-side configuration problem, not a problem with the request."
-              });
-            }
-            console.error(`[ERROR] Refusing ${req.user.id}: no repliers_api_key in PropelAuth metadata`);
-            return res.status(403).json({
-              error: "account_not_provisioned",
-              message: "This account has no Repliers API key configured. Contact Repliers support to have it enabled for MCP access."
-            });
-          }
-
-          // Handed to the transport per request: the SDK surfaces req.auth to every request
-          // handler as extra.authInfo, which is how the tool call gets the caller's key.
-          req.auth = {
-            token,
-            clientId: process.env.OAUTH_CLIENT_ID || 'unknown',
-            scopes: [],
-            extra: { userId: req.user.id, repliersApiKey: req.user.repliersApiKey },
-          };
-
-          console.error(`[DEBUG] User authenticated: ${req.user.id} (${req.user.email || 'no email'})`);
-          next();
-
-        } catch (error) {
-          console.error("[ERROR] Token verification error:", error);
-          return res.status(500).json({
-            error: "server_error",
-            message: "Failed to verify token"
-          });
-        }
+        console.error(`[ERROR] Refusing ${userId}: ${keyReason}`);
+        return res.status(403).json({
+          error: "account_not_provisioned",
+          message:
+            "This account has no Repliers API key configured. Contact Repliers support to have it enabled for MCP access.",
+        });
       }
 
       // OpenAI Apps domain verification challenge
@@ -374,104 +341,29 @@ async function run() {
         res.status(200).type("text/plain").send("YsKHt1Ih_SwBJkUoRWkn961DW7BjOM3qTlXz2Oub5pg");
       });
 
-      // OpenID Connect Discovery endpoint (more standard than OAuth-specific)
-      app.get("/.well-known/openid-configuration", (_req, res) => {
-        console.error("[DEBUG] OpenID Connect discovery endpoint called");
-
-        const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
-        const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
-        const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
-        const userInfoEndpoint = process.env.OAUTH_USERINFO_ENDPOINT || `${baseUrl}/oauth/userinfo`;
-
-        res.status(200).json({
-          issuer: baseUrl,
-          authorization_endpoint: authorizationEndpoint,
-          token_endpoint: tokenEndpoint,
-          userinfo_endpoint: userInfoEndpoint,
-          response_types_supported: ["code"],
-          grant_types_supported: ["authorization_code", "refresh_token"],
-          subject_types_supported: ["public"],
-          id_token_signing_alg_values_supported: ["RS256"],
-          code_challenge_methods_supported: ["S256"],
-          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
+      // Protected resource metadata (RFC 9728). This server is a resource server, not an
+      // authorization server, and this is the only document that describes it. Clients look for
+      // it first — Codex tries all of its addresses before anything else — and it names
+      // PropelAuth's MCP authorization server as the place to authenticate.
+      //
+      // Served from our own code rather than the SDK's mcpAuthMetadataRouter, which always also
+      // publishes /.well-known/oauth-authorization-server carrying the upstream issuer on this
+      // origin. RFC 8414 §3.3 requires that issuer to identify whoever served the document, and
+      // violating it is what made Codex discard our metadata in the first place.
+      //
+      // Hosted mode only. A self-hosted server carries its own REPLIERS_API_KEY and runs no
+      // token verification, so advertising an authorization server would send clients into a
+      // login flow that guards nothing.
+      if (!selfHosted) {
+        app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+          console.error("[DEBUG] Protected resource metadata requested for /");
+          res.status(200).json(protectedResourceDocument("/"));
         });
-      });
-
-      /**
-       * The public origin this server is reached on. Not knowable from configuration: Heroku
-       * terminates TLS and forwards plain HTTP, so the scheme has to come off x-forwarded-proto
-       * or an https:// deployment would advertise itself as http://. Both inputs are
-       * caller-controlled, which is harmless here — the client compares the result against the
-       * URL it just requested, so a spoofed value only ever invalidates the spoofer's own copy.
-       */
-      function publicOrigin(req) {
-        const forwarded = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
-        const protocol = forwarded === "https" || forwarded === "http" ? forwarded : req.protocol;
-        return `${protocol}://${req.get("host")}`;
+        app.get("/.well-known/oauth-protected-resource/mcp", (_req, res) => {
+          console.error("[DEBUG] Protected resource metadata requested for /mcp");
+          res.status(200).json(protectedResourceDocument("/mcp"));
+        });
       }
-
-      // OAuth discovery endpoint - provide OAuth server metadata.
-      //
-      // RFC 8414 §3.3: `issuer` identifies the server that served this document, and a client
-      // MUST discard metadata whose issuer is not the origin it fetched them from. Naming
-      // PropelAuth here made Codex refuse to log in ("OAuth authorization server issuer does not
-      // match authorization metadata origin"); claude.ai skips the check, which is why it worked.
-      // Only the identity moves to this host — authorization still happens at PropelAuth.
-      //
-      // The /.well-known/openid-configuration document above still reports the PropelAuth issuer
-      // on purpose: OIDC clients validate the `iss` claim of PropelAuth-signed ID tokens against
-      // it, so pointing it here would break them to fix nobody. Codex never reads it.
-      app.get("/.well-known/oauth-authorization-server", (req, res) => {
-        console.error("[DEBUG] OAuth discovery endpoint called");
-
-        const baseUrl = process.env.OAUTH_BASE_URL || "https://your-oauth-server.com";
-        const authorizationEndpoint = process.env.OAUTH_AUTHORIZATION_ENDPOINT || `${baseUrl}/oauth/authorize`;
-        const tokenEndpoint = process.env.OAUTH_TOKEN_ENDPOINT || `${baseUrl}/oauth/token`;
-        const issuer = publicOrigin(req);
-
-        res.status(200).json({
-          issuer,
-          authorization_endpoint: authorizationEndpoint,
-          token_endpoint: tokenEndpoint,
-          response_types_supported: ["code"],
-          grant_types_supported: ["authorization_code", "refresh_token"],
-          code_challenge_methods_supported: ["S256"],
-          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
-          // Include a registration endpoint that will return an error explaining the situation
-          registration_endpoint: `${issuer}/oauth/register`
-        });
-      });
-
-      // Dynamic client registration endpoint - returns pre-configured client
-      // This is a workaround for MCP clients that require dynamic registration
-      app.post("/oauth/register", (_req, res) => {
-        console.error("[DEBUG] Dynamic client registration attempted");
-
-        // Check if we have a pre-configured client ID
-        const preConfiguredClientId = process.env.OAUTH_CLIENT_ID;
-
-        if (!preConfiguredClientId) {
-          return res.status(501).json({
-            error: "registration_not_supported",
-            error_description: "Dynamic client registration is not supported. Please set OAUTH_CLIENT_ID in your .env file with your PropelAuth client ID."
-          });
-        }
-
-        // Return the pre-configured client as if we just registered it
-        console.error("[DEBUG] Returning pre-configured client ID:", preConfiguredClientId);
-        res.status(201).json({
-          client_id: preConfiguredClientId,
-          client_secret: process.env.OAUTH_CLIENT_SECRET || undefined,
-          redirect_uris: [
-            "http://localhost:3000/callback",
-            "http://127.0.0.1:3000/callback",
-            "https://app.jenova.ai/oauth/callback"
-          ],
-          grant_types: ["authorization_code", "refresh_token"],
-          response_types: ["code"],
-          token_endpoint_auth_method: process.env.OAUTH_CLIENT_SECRET ? "client_secret_post" : "none"
-        });
-      });
 
       // Health check endpoint (public - no auth required)
       app.get("/health", (_req, res) => {
@@ -484,23 +376,29 @@ async function run() {
         });
       });
 
+      // A batch counts if any member is the initialize: the SDK accepts that shape too.
+      const isInitializeRequest = (body) =>
+        Array.isArray(body)
+          ? body.some((entry) => entry?.method === "initialize")
+          : body?.method === "initialize";
+
       // MCP endpoint — handles all Streamable HTTP transport methods
-      app.all(["/", "/mcp"], ...(selfHosted ? [] : [verifyOAuthToken]), async (req, res) => {
+      async function handleMcpRequest(req, res) {
         try {
           const sessionId = req.headers['mcp-session-id'];
 
           // Route existing sessions directly. A session id is a client-supplied
-          // header, so it never stands in for identity: the caller proven by
-          // verifyOAuthToken must also be the user the session was opened for,
+          // header, so it never stands in for identity: the caller the access
+          // token proved must also be the user the session was opened for,
           // otherwise any authenticated user could drive another user's session
           // and spend their Repliers API key. Mismatches answer 404 rather than
           // 403 so the endpoint cannot be used to probe which session ids exist.
           if (sessionId) {
             const session = sessions[sessionId];
-            if (!session || (!selfHosted && session.userId !== req.user.id)) {
+            if (!session || (!selfHosted && session.userId !== req.auth.extra.userId)) {
               if (session) {
                 console.error(
-                  `[WARN] Session ownership mismatch: ${sessionId} is owned by ${session.userId}, requested by ${req.user.id}`
+                  `[WARN] Session ownership mismatch: ${sessionId} is owned by ${session.userId}, requested by ${req.auth.extra.userId}`
                 );
               }
               return res.status(404).json({ error: "Session not found" });
@@ -514,7 +412,24 @@ async function run() {
             return res.status(400).json({ error: "New sessions must be initialized with a POST request" });
           }
 
-          const sessionUserId = selfHosted ? null : req.user.id;
+          // ...and the POST has to actually be an initialize. Anything else arriving without a
+          // session id — a client retrying after its session was dropped, a notification racing
+          // ahead of the id it belongs to — used to build a Server, discover the whole roster and
+          // open a transport before the SDK rejected it as "Server not initialized", leaving a log
+          // line with no request to blame and a discarded server behind it.
+          if (!isInitializeRequest(req.body)) {
+            return res.status(400).json({
+              jsonrpc: "2.0",
+              error: {
+                code: -32600,
+                message:
+                  "Expected an initialize request: this POST carried no mcp-session-id, so there is no session to serve it. Initialize first, or resend with the session id.",
+              },
+              id: null,
+            });
+          }
+
+          const sessionUserId = selfHosted ? null : req.auth.extra.userId;
           console.error(`[DEBUG] New MCP session${selfHosted ? '' : ` for user: ${sessionUserId}`}`);
 
           const server = new Server(
@@ -547,7 +462,33 @@ async function run() {
             res.status(500).json({ error: "Internal server error", message: error.message });
           }
         }
-      });
+      }
+
+      /**
+       * The two paths are registered separately rather than as one array so that each 401 can
+       * point at the metadata document describing the resource that was actually asked for:
+       * RFC 9728 derives the document's address from the resource path, and a client that
+       * follows the wrong pointer learns nothing.
+       *
+       * No `requiredScopes`: this server defines no scopes. A token that authenticates a user
+       * can call every tool, because every tool acts as that user with that user's own Repliers
+       * key. requireBearerAuth would also advertise whatever is listed here in the challenge,
+       * and a client asks for exactly that — naming a scope the authorization server does not
+       * define would break the login for no gain.
+       */
+      const authChain = (resourcePath) =>
+        selfHosted
+          ? []
+          : [
+              requireBearerAuth({
+                verifier,
+                resourceMetadataUrl: resourceMetadataUrl(resourcePath),
+              }),
+              requireRepliersKey,
+            ];
+
+      app.all("/mcp", ...authChain("/mcp"), handleMcpRequest);
+      app.all("/", ...authChain("/"), handleMcpRequest);
 
       const port = process.env.PORT || 3001;
       console.error("[DEBUG] Starting Express server on port:", port);
@@ -558,8 +499,7 @@ async function run() {
         console.error(`[MCP Server]   - POST /mcp (initialize session)`);
         console.error(`[MCP Server]   - GET|POST|DELETE /mcp (active sessions)`);
         console.error(`[MCP Server]   - GET  /health (health check)`);
-        console.error(`[MCP Server]   - GET  /.well-known/openid-configuration`);
-        console.error(`[MCP Server]   - GET  /.well-known/oauth-authorization-server`);
+        console.error(`[MCP Server]   - GET  /.well-known/oauth-protected-resource[/mcp]`);
       });
     } else {
       console.error("[DEBUG] Starting stdio mode for Claude Studio");

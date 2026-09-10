@@ -1,9 +1,14 @@
-FROM node:26.8-alpine AS builder
+FROM node:26.8-alpine
 
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install
+RUN chown node:node /app
+USER node
 
-COPY . .
+COPY --chown=node:node package.json package-lock.json .npmrc ./
+RUN npm ci
 
-ENTRYPOINT ["node", "mcpServer.js"]
+COPY --chown=node:node . .
+
+EXPOSE 3001
+
+CMD ["node", "mcpServer.js", "--http"]
