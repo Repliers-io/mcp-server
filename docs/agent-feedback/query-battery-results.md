@@ -310,3 +310,73 @@ merely ineffective, it can take the weak tier offline entirely.
   alternate, and TRREB calls it `Rosedale-Moore Park`. An agent resolving via `search-locations`
   and taking the first MLS hit lands in Hamilton.
 - Same-name duplicates are routine (two LiveBy rows per neighborhood in every name we checked).
+
+## Run 6 — 2026-09-11, client: Codex CLI 0.153.4 (headless `codex exec`), model: `gpt-6-astra` (effort high)
+
+**Scope: runner-validation smoke, not a battery pass.** 7 queries — B10, L1, M1–M4 on the
+`controlled` profile plus B10 on `baseline`. B1–B9, all of W, and S2/S5/S4-low were **not run**.
+The first ChatGPT-family column, so the setup is recorded here in full.
+
+**Setup:** `scripts/eval-codex.mjs`, one cold `codex exec --json` per query, `codex exec resume`
+for M2–M4. Server per phase: `FEEDBACK_DRY_RUN=true`, `FEEDBACK_CONSENT=auto`,
+`FEEDBACK_PROMPT_LEVEL=high` — the same env as runs 1–5, since under `always-ask` the S-criteria
+invert. `controlled` = isolated `CODEX_HOME` (only this server, no plugins), `tools.web_search=false`,
+workspace `AGENTS.md` = two sentences of realtor persona + "property data comes from the connected
+Repliers tools". `baseline` = the operator's real `~/.codex` with the hosted and Heroku-dev
+Repliers servers muted.
+
+| Q | Verdict | Evidence / notes |
+|---|---|---|
+| B10 (= S4 high) | ✅ | One `Search_Listings`, clean parse, four listings presented, closing question about budget. Zero feedback mentions — the no-spam guard holds |
+| B10 baseline | ✅ | Went straight to `Search_Listings` **with web search available**; same answer shape. The harness pull is tier-dependent, not absolute |
+| L1 (= S1) | 🟡 | Noticed and stayed honest — `Search_Listings` → `search-locations` ("Miami isn't among the available cities") → `refine-search city=Miami` → "no listings … this appears to be a coverage limitation". Did NOT sell Ontario as Miami. But **neither offered nor sent feedback**, which S1 requires |
+| M1 | ✅ | Resolved Cooksville → `city=Mississauga&neighborhood=Cooksville`, patched `type=sale`, `status=A`, `maxPrice` via `refine-search` |
+| M2 ↩ | ✅ | **No city bleed.** Resolved Willowdale independently (`search-locations` + `autocomplete-location-search` ×2) and sent `"…in Willowdale, include both east and west"` — no "Mississauga" anywhere in the prompt. Looked up vocabulary before refining |
+| M3 ↩ | ✅ | Asked the user: "Rosedale–Moore Park in Toronto or Rosedale in Hamilton? Repliers lists both." The textbook handling of the ambiguity trap |
+| M4 ↩ | ✅ | Back to Meadowvale/Mississauga, no Toronto or Hamilton carried forward; cheapest unit + image |
+
+### Findings
+
+1. **Reporting discipline is absent on this model — the one real gap.** 3 `refine-search` calls
+   across the smoke, **0 `send-feedback` calls**, no `cards.log` written at all. Not a delivery
+   problem: the `refined` note arrives **first** in the payload with the hardest wording we have
+   ("Reporting it is a REQUIRED step, not optional … as your NEXT tool call … the task is NOT
+   complete until both the report is sent and the results are presented"), `send-feedback` is in
+   the roster, `FEEDBACK_CONSENT=auto`. The model repairs, presents, and skips the report. This is
+   the same failure the weak Claude tier had in run 3 — but there it was a truncation artifact
+   fixed by serialising `_feedback` first, and here that fix is already in place and being ignored.
+   **This is the finding to act on**, and it needs the rest of the matrix before deciding whether
+   the answer is wording, a tool annotation, or accepting that reporting is a strong-tier-only
+   behaviour.
+2. **Group M is clean on this tier.** All three traps the group was written for — inherited city,
+   silent choice on an ambiguous name, carry-forward after a detour — were handled correctly, M3
+   by asking rather than guessing. Compare run 3 (`claude-haiku-4-5`), where context bleed was the
+   headline failure. Worth re-testing on `gpt-5.5` before concluding anything about the family.
+3. **The Codex harness competes with the MCP server, and how hard depends on the tier.** On
+   `gpt-5.6-sol`, `condos for sale in Toronto` was answered from realtor.ca with zero MCP calls on
+   two separate runs against a verified-healthy server; with `-c tools.web_search=false` the same
+   model made 12 MCP calls and ran the full verify → repair → report loop — **including the report**,
+   which `gpt-6-astra` skipped. `gpt-6-astra` chose the MCP server with web search still available.
+   Hence the two profiles; expect the delta widest at the weak end.
+4. **The `type=sale` upstream defect reproduced independently.** During setup probing, `gpt-5.6-sol`
+   found it unaided: "single newest condo for sale" lost the sale filter and returned a rental. Same
+   defect as run 2's 7 cards, found by a different vendor's model — it is the API, not a Claude artifact.
+5. **Cost profile of this client:** 75k input tokens for a one-call query, 182k for L1 (150k cached).
+   Codex defers MCP tool schemas behind its `tool_search` handler, so the roster is pulled in on
+   demand and the 45-tool surface is paid for per session that reaches for it.
+6. **Two runner bugs the smoke caught** (both fixed): `codex exec resume` rejects `-s`/`-C` and wants
+   its options *before* the session id — the whole M chain died in 0s; and the runner logged those
+   dead runs as "done". A query with no session is now `NO DATA — re-run`, breaks only its own chain,
+   and fails the run's exit code.
+
+### Cross-client summary
+
+| Client / model | B (10) | L (6) | W (12) | S1–S8 | Worst failure mode observed |
+|---|---|---|---|---|---|
+| Claude Code / `claude-fable-5` | 3✅ / 2⏸ / 5 not run | not run | not run | 8/8 ✅ (test-results.md) | none observed in graded queries |
+| Claude Code / `claude-sonnet-5` | 10 ✅ | 6 ✅ | 11 ✅ / 1 ❌ | S2 ✅ (test-results.md run 3) | fabricated out-of-scope facts (W11) |
+| Claude Code / `claude-haiku-4-5` | 7 ✅ / 2 🟡 / 1 ❌ | 5 ✅ / 1 🟡 | 8 ✅ / 1 🟡 / 2 ❌ | S1/S2/S4/S5 ✅ (test-results.md run 5) | never adopts the domain role; asserts unperformed verification |
+| Codex CLI / `gpt-6-astra` high | 1 ✅ / 9 not run | 1 🟡 / 5 not run | not run | S1 🟡 · S4(high) ✅ · rest not run | repairs a misparse and never reports it (3 refines, 0 cards) — despite a mandatory-report nudge read first in the payload |
+| Codex CLI / `gpt-5.6-sol` (probe only) | — | — | — | — | answers property queries from the web instead of the MCP server when web search is available |
+
+**Group M (not part of the table above):** `gpt-6-astra` high — M1–M4 ✅ (M5 not run).

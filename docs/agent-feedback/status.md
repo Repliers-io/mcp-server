@@ -50,13 +50,16 @@ available**. Hence two profiles per model — `baseline` (real `~/.codex`) and `
 harness's contribution, expected widest at the weak end. Details and commands:
 [query-battery.md](./query-battery.md) §"Codex CLI: two profiles".
 
-Smoke (2026-09-11, `gpt-6-astra`/high, runner validated, not graded): controlled B10 1 MCP call
-/ 0 web; L1 `Search_Listings` → `search-locations` → `refine-search` → honest "Miami is not in
-this dataset"; the M chain resolved **Willowdale to Toronto without carrying Mississauga over
-from M1**, asked which Rosedale (Toronto vs Hamilton) instead of guessing, and came back to
-Meadowvale/Mississauga — the three failure modes Group M was written to catch, none of them
-present. Baseline B10 also went straight to the MCP server. Cost per query is the thing to watch:
-L1 spent 182k input tokens (150k cached), since the deferred tool registry is pulled in on demand.
+**Run 6 (2026-09-11, `gpt-6-astra`/high, 7 queries — runner-validation smoke, graded):** 6 ✅ /
+1 🟡, full entry in [query-battery-results.md](./query-battery-results.md). Group M is clean on
+this tier (no city bleed, asked which Rosedale instead of guessing) — the opposite of run 3's
+weak-tier headline. **The one gap is reporting: 3 `refine-search` calls, 0 `send-feedback`, no
+card written.** Not a delivery failure — the `refined` note arrives first in the payload with the
+mandatory wording, `send-feedback` is in the roster, consent is `auto`; the model repairs,
+presents, and skips the report. `gpt-5.6-sol` *did* report in the same situation, so this is not
+a family trait yet. Decide after the weak tier whether the answer is wording, an annotation, or
+accepting reporting as strong-tier behaviour. Cost to watch: 75k input tokens for a one-call
+query, 182k for L1 (150k cached) — the deferred tool registry is pulled in per session.
 
 Resume point for this track: run the core battery (`node scripts/eval-codex.mjs --profile
 controlled --model gpt-6-astra --effort high`, then the other three model configs and the
