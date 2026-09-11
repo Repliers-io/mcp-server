@@ -1,7 +1,7 @@
 # Agent Feedback — Status & Resume Point
 
-**Updated:** 2026-08-28
-**Branch:** `feat/agent-feedback` (pushed to origin; unit suite 47/47 green via `npm test`)
+**Updated:** 2026-09-11
+**Branch:** `feat/agent-feedback` (pushed to origin; unit suite 164/164 green via `npm test` on 2026-09-11)
 
 ## Where we are
 
@@ -25,6 +25,45 @@ MCP tool annotations (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWor
 Run 4 (2026-08-29): shipped three instruction fixes — role sentence, SCOPE boundary, and required parameters in the send-feedback description. **The SCOPE fix works on both tiers** (Sonnet's W11 fabrication is gone; Haiku now cites the real data scope), closing run 2's only FAIL. **The role fix is only partial**: Haiku decodes real-estate shorthand now but still answers W12 as "software engineering tasks in this repo" — MCP instructions carry facts about the data but do not override the host harness's persona on a weak model. On a realtor-facing surface the HOST must set the persona.
 
 Resume point: (1) decide whether anything further is warranted for the persona limit (host-side, not server-side) (an explicit "listings/locations/stats only" clause in the server instructions vs. accepting harness-dependent behaviour) and hand the five defects above to Repliers, (2) second consecutive all-PASS Fable core run on the current wording → acceptance, (3) real-Trello A4 before merge, (4) report the discovered upstream API bug (parking/lockers leak through minBeds) to Repliers.
+
+## ChatGPT / Codex track (opened 2026-09-11)
+
+Harness: **Codex CLI 0.153.4**, headless `codex exec --json`, one cold session per query,
+`codex exec resume` for the ↩ chains. Runner: `scripts/eval-codex.mjs`; prompts:
+`scripts/eval-batteries/core.json` (core 15 = B1, B2, B10 · L1 · W3, W11, W12 · M1–M5 · S2,
+S4-low, S5; L1 doubles as S1 and B10 as S4). Model matrix agreed with the owner:
+`gpt-6-astra` at low **and** high effort, `gpt-5.6-sol` and `gpt-5.5` at medium. Server env
+matches the Claude columns — `FEEDBACK_DRY_RUN=true`, `FEEDBACK_CONSENT=auto`,
+`FEEDBACK_PROMPT_LEVEL=high` — because under `always-ask` (what `.env` currently carries) S5
+inverts: reporting an api-error without asking becomes a FAIL instead of the PASS criterion.
+
+**Finding before a single graded query — the Codex harness competes with the MCP server, and how
+hard depends on the tier.** Tools are deferred behind Codex's `tool_search` (hardwired, no
+toggle), which is survivable: models do find them. Built-in web search is the real competitor.
+`condos for sale in Toronto` on `gpt-5.6-sol` was answered from realtor.ca with **zero** MCP
+calls on two separate runs against a verified-healthy server; the same model and prompt with
+`-c tools.web_search=false` made 12 MCP calls and independently re-found the `type=sale` upstream
+defect (NLP drops the sale filter) through verify → `refine-search` → `send-feedback`. But
+`gpt-6-astra` at high effort chose the MCP server on that prompt **with web search still
+available**. Hence two profiles per model — `baseline` (real `~/.codex`) and `controlled`
+(isolated `CODEX_HOME`, web off, realtor persona in `AGENTS.md`) — with the delta reported as the
+harness's contribution, expected widest at the weak end. Details and commands:
+[query-battery.md](./query-battery.md) §"Codex CLI: two profiles".
+
+Smoke (2026-09-11, `gpt-6-astra`/high, runner validated, not graded): controlled B10 1 MCP call
+/ 0 web; L1 `Search_Listings` → `search-locations` → `refine-search` → honest "Miami is not in
+this dataset"; the M chain resolved **Willowdale to Toronto without carrying Mississauga over
+from M1**, asked which Rosedale (Toronto vs Hamilton) instead of guessing, and came back to
+Meadowvale/Mississauga — the three failure modes Group M was written to catch, none of them
+present. Baseline B10 also went straight to the MCP server. Cost per query is the thing to watch:
+L1 spent 182k input tokens (150k cached), since the deferred tool registry is pulled in on demand.
+
+Resume point for this track: run the core battery (`node scripts/eval-codex.mjs --profile
+controlled --model gpt-6-astra --effort high`, then the other three model configs and the
+baseline halves) → grade the generated `summary.md` per run → log in
+[query-battery-results.md](./query-battery-results.md) with a cross-client table row. Decide
+after the first full pair whether all 4 models × 2 profiles are warranted or the weak tier alone
+carries the delta.
 
 ## Consent policy: `FEEDBACK_CONSENT`
 

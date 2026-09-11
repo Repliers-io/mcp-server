@@ -16,10 +16,50 @@ agent handles the failure.
 | Client | Connection |
 |---|---|
 | Claude Code CLI / Cursor / Desktop | `http://localhost:3001/mcp` (user-scope or `.mcp.json`) |
+| Codex CLI (ChatGPT models) | `http://localhost:3001/mcp` via `codex mcp add repliers_local --url …`; battery runs go through `scripts/eval-codex.mjs` (below) |
 | claude.ai web / ChatGPT connector | ngrok/cloudflared tunnel → `https://<tunnel>/mcp` |
 
 Server env for all runs: `REPLIERS_API_KEY` set, `FEEDBACK_PROMPT_LEVEL=high`,
 `FEEDBACK_DRY_RUN=true` (or real Trello keys). Start: `npm run start:http`.
+
+### Codex CLI: two profiles, because the harness is a variable
+
+Codex does not put MCP tools in the model's opening prompt — they sit behind its `tool_search`
+handler (`tool_search_always_defer_mcp_tools`, stage *removed* = hardwired, no toggle). That alone
+is survivable: the model finds them. What competes with them is **built-in web search** — on
+`condos for sale in Toronto` `gpt-5.6-sol` answered from realtor.ca with zero MCP calls, twice,
+against a verified-healthy server; with `-c tools.web_search=false` the same model and prompt
+produced 12 MCP calls and a full verify → `refine-search` → `send-feedback` loop.
+
+The pull is tier-dependent, which is exactly why it gets measured rather than assumed: on the
+same prompt with web search still available, `gpt-6-astra` at high effort went to the MCP server
+unprompted (1 call, 0 searches). Expect the baseline↔controlled delta to be widest at the weak
+end of the matrix.
+
+So every Codex row is run twice, and the delta is the harness's contribution:
+
+| Profile | Setup | Answers |
+|---|---|---|
+| `baseline` | the operator's real `~/.codex` (plugins, web search, Codex's own persona), hosted + Heroku-dev Repliers servers muted per run so only localhost replies | what a ChatGPT-side user actually gets |
+| `controlled` | isolated `CODEX_HOME` = `mcp-eval/.codex-eval` (only this server, no plugins), `tools.web_search=false`, workspace `mcp-eval/codex-controlled` whose `AGENTS.md` sets the realtor persona | model quality on our tools, comparable to the Claude Code columns |
+
+`controlled`'s `AGENTS.md` is coaching by the battery's own rules, so it is deliberately minimal —
+persona and data source only, nothing about `appliedFilters`, repair or reporting — and quoted
+verbatim in the results log so its effect stays auditable.
+
+```
+node scripts/eval-codex.mjs --profile controlled --model gpt-6-astra --effort high   # full core battery
+node scripts/eval-codex.mjs --profile baseline --model gpt-5.5 --queries B10,L1      # subset; chains pull in their whole chain
+node scripts/eval-codex.mjs --plan --profile baseline --model gpt-5.5               # print the plan, run nothing
+```
+
+The runner owns the server: it refuses to start while anything answers on `:3001` (a stale
+listener has invalidated a run before), restarts it per phase so `FEEDBACK_PROMPT_LEVEL=low` (S4)
+and a deliberately broken `REPLIERS_API_KEY` (S5) are real rather than assumed, and slices the
+dry-run card log per query. Output per run: raw `<id>.jsonl`, `results.json`, and a `summary.md`
+grading sheet that already lists every MCP call **with its arguments** — Group M cannot be graded
+without reading the `prompt` actually sent to `Search_Listings`. Prompts live in
+`scripts/eval-batteries/core.json`; this file stays their source of truth.
 
 **Protocol:** one **cold** session per group (fresh chat, no memory). Queries marked ↩ are
 follow-ups and stay in the same session, in order. Don't coach the agent — the point is what it
