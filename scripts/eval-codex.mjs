@@ -16,6 +16,13 @@
 //   baseline   - the operator's real ~/.codex (plugins, web search, Codex persona) with the
 //                hosted/dev Repliers servers muted so only localhost answers. Measures what a
 //                ChatGPT-side user actually gets. The delta between the two IS the harness.
+//   instructed - controlled plus the server's own `instructions` delivered up front in AGENTS.md,
+//                regenerated per phase from lib/serverInstructions.js so it cannot drift. This
+//                emulates a host-level instruction field (the ChatGPT connector's instructions
+//                box). It exists because on this client MCP `instructions` only reach the model
+//                if it happens to load the tool registry: W11 answered with zero registry loads,
+//                so the SCOPE rule never arrived, and the profile with the text in AGENTS.md was
+//                the one that refused the out-of-scope question.
 
 import { spawn } from "node:child_process";
 import {
@@ -30,7 +37,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
@@ -74,7 +81,9 @@ function parseArgs(argv) {
       default: fail(`unknown argument: ${arg}`);
     }
   }
-  if (!["controlled", "baseline"].includes(args.profile)) fail("--profile must be controlled or baseline");
+  if (!["controlled", "baseline", "instructed"].includes(args.profile)) {
+    fail("--profile must be controlled, baseline or instructed");
+  }
   return args;
 }
 
@@ -201,9 +210,16 @@ async function startServer(phase, phaseEnv, { port, cardsLog }) {
 
 // ---------------------------------------------------------------- profiles
 
+// The persona both isolated profiles share. Keeping it identical makes the server instructions
+// the ONLY difference between `controlled` and `instructed`.
+const PERSONA = `You are a real-estate assistant for an end user (a realtor or their client).
+
+Property data — listings, locations, market statistics — comes from the connected
+Repliers tools. Do not answer property questions from memory.`;
+
 function profileSetup(args) {
   const mcpUrl = `http://localhost:${args.port}/mcp`;
-  if (args.profile === "controlled") {
+  if (args.profile === "controlled" || args.profile === "instructed") {
     const home = join(args.evalRoot, ".codex-eval");
     if (!existsSync(join(home, "config.toml"))) fail(`missing ${join(home, "config.toml")}`);
     if (!existsSync(join(home, "auth.json"))) {
@@ -211,7 +227,7 @@ function profileSetup(args) {
     }
     return {
       env: { CODEX_HOME: home },
-      workspace: join(args.evalRoot, "codex-controlled"),
+      workspace: join(args.evalRoot, `codex-${args.profile}`),
       extraArgs: ["-c", `mcp_servers.repliers_local.url="${mcpUrl}"`, "-c", "tools.web_search=false"],
     };
   }
@@ -227,6 +243,30 @@ function profileSetup(args) {
       "-c", "mcp_servers.repliers_hosted_mcp.enabled=false",
     ],
   };
+}
+
+// The `instructed` profile hands the model the server's own instructions the way a host-level
+// instruction field would: once, up front. Regenerated per phase because the text depends on the
+// phase env (consent mode, whether the feedback channel is configured) — a stale file would
+// silently test wording that is not the wording under test.
+async function writeHostInstructions(workspace, phaseEnv) {
+  const restore = {};
+  for (const [key, value] of Object.entries(phaseEnv)) {
+    if (key === "breakApiKey") continue;
+    restore[key] = process.env[key];
+    process.env[key] = value;
+  }
+  const { buildServerInstructions } = await import(
+    pathToFileURL(join(repoRoot, "lib", "serverInstructions.js")).href
+  );
+  const instructions = buildServerInstructions();
+  for (const [key, value] of Object.entries(restore)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  mkdirSync(workspace, { recursive: true });
+  writeFileSync(join(workspace, "AGENTS.md"), `${PERSONA}\n\n${instructions}\n`);
+  return instructions.length;
 }
 
 // ---------------------------------------------------------------- event extraction
@@ -397,6 +437,9 @@ async function main() {
     return;
   }
 
+  // `instructed` owns its workspace: the AGENTS.md in it is generated per phase, so the directory
+  // is created here rather than being a precondition the operator has to remember.
+  if (args.profile === "instructed") mkdirSync(setup.workspace, { recursive: true });
   if (!existsSync(setup.workspace)) fail(`workspace ${setup.workspace} does not exist`);
   mkdirSync(outDir, { recursive: true });
 
@@ -429,6 +472,10 @@ async function main() {
   for (const phase of phases) {
     const phaseEnv = battery.phases[phase];
     if (!phaseEnv) fail(`battery ${battery.id} has no phase "${phase}"`);
+    if (args.profile === "instructed") {
+      const chars = await writeHostInstructions(setup.workspace, phaseEnv);
+      console.log(`[eval-codex] phase ${phase}: AGENTS.md carries ${chars} chars of server instructions`);
+    }
     let server = null;
     if (args.externalServer) {
       if (!(await serverHealthy(args.port))) fail(`--external-server given but nothing healthy on :${args.port}`);

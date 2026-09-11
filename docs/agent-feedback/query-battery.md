@@ -42,6 +42,33 @@ So every Codex row is run twice, and the delta is the harness's contribution:
 |---|---|---|
 | `baseline` | the operator's real `~/.codex` (plugins, web search, Codex's own persona), hosted + Heroku-dev Repliers servers muted per run so only localhost replies | what a ChatGPT-side user actually gets |
 | `controlled` | isolated `CODEX_HOME` = `mcp-eval/.codex-eval` (only this server, no plugins), `tools.web_search=false`, workspace `mcp-eval/codex-controlled` whose `AGENTS.md` sets the realtor persona | model quality on our tools, comparable to the Claude Code columns |
+| `instructed` | `controlled` plus the server's own `instructions` delivered up front in `AGENTS.md`, regenerated per phase from `lib/serverInstructions.js` | what a host-level instruction field buys us (the ChatGPT connector's instructions box) |
+
+### Why `instructed` exists: how Codex actually delivers our tools
+
+Codex runs the model in **code mode**. Tool schemas are never in the prompt: the model writes
+JavaScript against an `ALL_TOOLS` array and calls tools as
+`await tools.mcp__repliers_local__Search_Listings({...})` (dashes in tool names become
+underscores). Discovery is a filter the model writes itself:
+`ALL_TOOLS.filter(x => /repliers|listings/i.test(x.name + " " + x.description))`.
+
+Codex builds every registry entry as **[server `instructions`] + [our tool description] +
+[TypeScript declaration]**. Measured on a live session: our server sends `instructions` once
+(2303 chars) and 15,331 chars of descriptions for all 45 tools; the registry the model queries
+carries the instruction text on *every* entry (~103 KB of duplication), the query came back at
+**41,935 tokens**, the sandbox truncated it, and the model parsed **9 of 45 tools**. Across four
+sessions the visible slice was 9/12/9/13 tools and `send-feedback` was missing from two of them.
+
+Worse for scope rules: a question that needs no tools never loads the registry at all, so the
+instructions never arrive. W11 (`what's the best mortgage rate right now?`) made zero registry
+loads in both profiles — `controlled` refused only because its two-sentence `AGENTS.md` was in the
+prompt, while `baseline` web-searched and quoted rates. That is the whole case for `instructed`,
+and for filling in the host-side instruction field on any consumer surface.
+
+`scripts/print-instructions.mjs` prints the same text for pasting into such a field
+(`--consent always-ask`, `--no-feedback` for a Trello-less deployment) so the two channels cannot
+drift — the gating rule that `send-feedback` is never mentioned when the tool is absent holds in
+both.
 
 `controlled`'s `AGENTS.md` is coaching by the battery's own rules, so it is deliberately minimal —
 persona and data source only, nothing about `appliedFilters`, repair or reporting — and quoted

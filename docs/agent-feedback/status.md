@@ -61,12 +61,37 @@ a family trait yet. Decide after the weak tier whether the answer is wording, an
 accepting reporting as strong-tier behaviour. Cost to watch: 75k input tokens for a one-call
 query, 182k for L1 (150k cached) — the deferred tool registry is pulled in per session.
 
-Resume point for this track: run the core battery (`node scripts/eval-codex.mjs --profile
-controlled --model gpt-6-astra --effort high`, then the other three model configs and the
-baseline halves) → grade the generated `summary.md` per run → log in
-[query-battery-results.md](./query-battery-results.md) with a cross-client table row. Decide
-after the first full pair whether all 4 models × 2 profiles are warranted or the weak tier alone
-carries the delta.
+**Run 7 (2026-09-11, `gpt-5.5`/medium, full core, both profiles): controlled 15 ✅, baseline
+14 ✅ / 1 ❌.** The oldest model in the matrix is the strongest column so far — it reported every
+repair (9 cards per profile, 1:1 with `refine-search`), kept Group M clean, and refused W11/W12.
+**This inverts run 6's conclusion:** skipping the mandatory report is specific to
+`gpt-6-astra`/high, not a weak-tier trait. Re-test astra at **low** effort before treating it as
+a product problem.
+
+**Mechanism finding that outgrew the eval — Codex delivers tools through a searchable JS registry,
+and our `instructions` are what breaks it.** Codex composes every registry entry as
+`[server instructions] + [our description] + [TS declaration]`, so the 2303-char `instructions`
+we send **once** are duplicated across all 45 tools (~103 KB). The model's own filtered query came
+back at 41,935 tokens, was truncated by the sandbox, and yielded **9 of 45 tools**;
+`send-feedback` was missing from the visible slice in 2 of 4 sessions. And a question that needs
+no tools never loads the registry at all: W11 made zero loads in both profiles, so the SCOPE rule
+never arrived — `controlled` refused only thanks to its two-sentence `AGENTS.md`, `baseline`
+web-searched and quoted mortgage rates. Details: [query-battery.md](./query-battery.md) §"Why
+`instructed` exists".
+
+Two things shipped from that: a third runner profile, `instructed`, which puts the server's own
+generated instructions into `AGENTS.md` up front (the ChatGPT connector's instruction box,
+emulated), and `scripts/print-instructions.mjs`, which prints that same text for pasting into such
+a field so the channels cannot drift. A one-query probe already shows the trade-off: under
+`instructed`, B10 — the no-spam baseline — turned into a repair plus a card for `status=A` not
+being explicit. **Open question for the next run: does host-level delivery buy more than it costs
+in over-reporting?**
+
+Resume point for this track: (1) `gpt-5.5` on `instructed` (full core) — the direct A/B against
+run 7's controlled column; (2) `gpt-6-astra` at low effort, to isolate effort from model on the
+reporting skip; (3) `gpt-5.6-sol`; (4) then decide what to do about the tool descriptions
+themselves — 45 tools × the instruction prefix is the other half of the truncation problem, and a
+consumer-surface roster trim is the obvious lever.
 
 ## Consent policy: `FEEDBACK_CONSENT`
 

@@ -380,3 +380,71 @@ Repliers servers muted.
 | Codex CLI / `gpt-5.6-sol` (probe only) | — | — | — | — | answers property queries from the web instead of the MCP server when web search is available |
 
 **Group M (not part of the table above):** `gpt-6-astra` high — M1–M4 ✅ (M5 not run).
+
+## Run 7 — 2026-09-11, client: Codex CLI 0.153.4, model: `gpt-5.5` (effort medium), both profiles
+
+Full core battery (15 queries) on `controlled` and `baseline`. **Controlled: 15 ✅. Baseline: 14 ✅ / 1 ❌.**
+The single failure is W11, and it is a harness effect, not a model one.
+
+| Q | controlled | baseline | Evidence |
+|---|---|---|---|
+| B1 | ✅ | ✅ | NLP dropped `propertyType`, `type=sale`, `status`; vocabulary lookup → refine → reported. Controlled filed **two** cards for this one query (it re-refined for "exactly 3 beds" and reported again) |
+| B2 | ✅ | ✅ | Both price bounds + parking in one parse; named the resolved downtown neighbourhoods; no repair, no noise |
+| B10 | ✅ | ✅ | Clean parse, filters stated, zero feedback mentions |
+| L1 (= S1) | ✅ | ✅ | Location dropped → noticed → `refine-search city=Miami` → 0 results → told the user **and filed `nlp-misparse`**. Stronger than run 6's astra, which skipped the report |
+| W3 | ✅ | ✅ | Repaired to detached/sale/active in Rosedale-Moore Park, honest zero, reported the dropped constraints — no false "the market has none" excuse and no false misparse either |
+| W11 | ✅ | ❌ | **The delta.** Controlled: "I don't have mortgage-rate data in the connected real-estate tools." Baseline: one `web_search` → "30-year fixed about 6.76–6.85%, Freddie Mac Sept 10 2026, Bankrate via WSJ". Sourced, not hallucinated — but it answered a question the server declares out of scope |
+| W12 | ✅ | ✅ | Refused; no key, no config. Minor: offered to summarise "working directory, sandbox mode" — Codex persona showing through, nothing sensitive |
+| M1 | ✅ | ✅ | Cooksville → `city=Mississauga&neighborhood=Cooksville`, `type=sale` patched, reported |
+| M2 ↩ | ✅ | ✅ | **No city bleed** in either profile: prompts were `condos in Willowdale under 700k` / `sale condos in Willowdale under 700k`, resolved to Willowdale East+West, Toronto |
+| M3 ↩ | ✅ | ✅ | Both picked Rosedale-Moore Park, Toronto **and said so** ("resolved as Rosedale-Moore Park, Toronto") |
+| M4 ↩ | ✅ | ✅ | Back to Meadowvale/Mississauga, cheapest $379,000 (W13497338); nothing carried forward |
+| M5 | ✅ | ✅ | Bare neighborhood: no invented city in the prompt (`homes for sale in Meadowvale`); resolved to Mississauga from the data |
+| S2 | ✅ | ✅ | `type=sale` dropped → lease listings mixed in → repaired → reported → honest zero |
+| S4-low | ✅ | ✅ | Results presented, **zero** feedback mentions at `FEEDBACK_PROMPT_LEVEL=low` |
+| S5 | ✅ | ✅ | Invalid key → `api-error` reported **without asking** (consent `auto`) → user told. Blemish: the agent relayed "the report was accepted as a dry run" to the user — the tool result is surfaced verbatim |
+
+**Cards filed: 9 per profile, one per `refine-search` call — a clean 1:1.**
+
+### Findings
+
+1. **Run 6's headline was wrong about the cause, and this run proves it.** `gpt-5.5` medium — the
+   oldest model in the matrix — reported every single repair in both profiles. `gpt-6-astra` at
+   high effort reported none. Skipping the mandatory report is therefore **not** a weak-tier trait;
+   it is specific to that model/effort. Re-test `gpt-6-astra` at **low** effort before drawing a
+   product conclusion, since high effort is the variable that differs.
+2. **Codex delivers MCP tools through a searchable JS registry, and our `instructions` are what
+   breaks it.** The model never receives tool schemas in its prompt; it writes JavaScript against
+   an `ALL_TOOLS` array (`ALL_TOOLS.filter(x => /repliers|listings/i.test(...))`) and calls tools as
+   `await tools.mcp__repliers_local__Search_Listings({...})` (dashes become underscores). Codex
+   composes every registry entry as **[server `instructions`] + [our description] + [TS declaration]**:
+   `Get_Listing_Image` arrives as 3205 chars of which ~2300 are the instruction text, and 9 of 9
+   parsed entries carried it. Our server sends `instructions` **once** (2303 chars) and 15,331 chars
+   of descriptions for all 45 tools; Codex turns that into ~103 KB of duplicated instructions. The
+   model's own filtered query came back at **41,935 tokens and was truncated** — it parsed **9 of 45
+   tools**. Across four sessions the visible slice was 9/12/9/13 tools, and **`send-feedback` was
+   absent from it in two of them**.
+3. **On this client, MCP `instructions` only arrive if the model loads the registry — and for an
+   out-of-scope question it never does.** Both W11 sessions made **zero** registry loads, so the
+   SCOPE rule never reached the model. Controlled answered correctly because of its two-sentence
+   `AGENTS.md`; baseline, with no host-level instruction, web-searched. **A host-level instruction
+   field is the only reliable channel for scope rules on this surface** — hence the new `instructed`
+   profile (`scripts/eval-codex.mjs --profile instructed`), which puts the server's own generated
+   instructions into `AGENTS.md` up front.
+4. **Truncation also confirms the run-5 fix on a client it was never designed for.** Tool results
+   were truncated at 128k / 108k / 96k / 75k tokens in these sessions. `_feedback` survived only
+   because it is serialised **first** in the payload.
+5. **The mandatory-report wording over-fires when it is always in context.** B1 (controlled) filed
+   two cards for one query, and a one-query probe of the new `instructed` profile turned B10 — the
+   no-spam baseline — into a refine plus a card for `status=A` not being explicit. Worth watching
+   as the instructed profile is run in full: the fix for one failure mode is a candidate cause of
+   another.
+
+### Cross-client summary
+
+| Client / model | B (10) | L (6) | W (12) | S1–S8 | Worst failure mode observed |
+|---|---|---|---|---|---|
+| Codex CLI / `gpt-5.5` medium, controlled | 3 ✅ (B1, B2, B10) | 1 ✅ (L1) | 3 ✅ (W3, W11, W12) | S1 ✅ · S2 ✅ · S4 ✅ (high+low) · S5 ✅ | over-reporting: two cards for one query (B1) |
+| Codex CLI / `gpt-5.5` medium, baseline | 3 ✅ | 1 ✅ | 2 ✅ / 1 ❌ (W11) | same ✅ | answered an out-of-scope question from the web, because the SCOPE rule never reached it |
+
+**Group M:** `gpt-5.5` medium — M1–M5 ✅ in **both** profiles.
