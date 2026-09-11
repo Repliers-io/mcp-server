@@ -37,7 +37,10 @@
   },
   "GET /locations/autocomplete": {
     "name": "autocomplete-location-search",
-    "description": "Type-ahead location matching: pass the user's partial input in search (min 3 chars) and get matching areas/cities/neighborhoods with locationId. Use for resolving ambiguous or misspelled place names quickly; filter with type[] to narrow. NOT for property/listing lookups — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+    "description": "Type-ahead location matching: pass the user's partial input in search (min 3 chars) and get matching areas/cities/neighborhoods with locationId. Use for resolving ambiguous or misspelled place names quickly; filter with type[] to narrow. NOT for property/listing lookups — use Search_Listings. If results look wrong or incomplete — see send-feedback.",
+    "parameterDescriptions": {
+      "resultsPerPage": "The number of locations to return per page. Accepts 1-10 only, default 10 — this endpoint caps far lower than the other search tools, and a larger value is rejected by the API."
+    }
   },
 
   "brokerages": {

@@ -113,11 +113,27 @@ model TypeScript, and `minimum`/`maximum`/`default`/`format` do not survive that
 has to be in the description prose.** That, plus trimming the 45-tool roster for consumer surfaces,
 is the remaining half of the truncation problem.
 
-Resume point for this track: (1) tool-description pass per the table in
-[query-battery-results.md](./query-battery-results.md) run 9; (2) `gpt-6-astra` at **low** effort, to
-check whether effort alone changes reporting without the instructions; (3) `gpt-5.6-sol`, the only
-model observed preferring web search over the MCP server; (4) make `send-feedback`'s result a
-user-safe acknowledgement — three answers relayed the `dryRun` flag to the end user verbatim.
+**Fixed (2026-09-11), narrowly and on purpose:** only the constraint we actually tripped on.
+`autocomplete-location-search`'s `resultsPerPage` caps at 10 while the other search tools allow
+100–1000, so an agent carrying over a larger value gets an API rejection — run 9 did, and filed a
+false-positive card blaming our schema. The cap now lives in the parameter's description prose via
+`codegen/overrides.json` → `parameterDescriptions` (the JSON Schema keeps `minimum`/`maximum`
+untouched; regeneration changed exactly one line in one generated file). Verified end to end: asked
+for "as many results as that tool allows", `gpt-5.5` passed `resultsPerPage: 10` and said "the
+autocomplete tool allows 10 results per call", and the text is present in the model-visible
+declaration in the session rollout.
+
+An inventory of the same class of loss exists but was deliberately **not** acted on: 217 schema
+constraints across 44 tools are stated only machine-readably (142 `format`, 29 `default`, 17
+`minimum`, 12 `maxLength`, 12 `maximum`). Most are unviolatable in practice (`lat` ∈ [-90, 90],
+`minPrice ≥ 0`). If this ever needs doing wholesale, the lever is a helper in `codegen/generate.js`
+that appends bounds to each parameter description at generation time — not 39 hand edits.
+
+Resume point for this track: (1) `gpt-6-astra` at **low** effort, to check whether effort alone
+changes reporting without the instructions; (2) `gpt-5.6-sol`, the only model observed preferring
+web search over the MCP server; (3) make `send-feedback`'s result a user-safe acknowledgement —
+three answers relayed the `dryRun` flag to the end user verbatim; (4) the 45-tool roster on
+consumer surfaces, which is the other half of the registry-truncation problem.
 
 ## Consent policy: `FEEDBACK_CONSENT`
 

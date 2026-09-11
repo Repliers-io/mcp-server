@@ -94,7 +94,7 @@ export const apiTool = {
             "minimum": 1,
             "maximum": 10,
             "default": 10,
-            "description": "The number of locations to return per page."
+            "description": "The number of locations to return per page. Accepts 1-10 only, default 10 — this endpoint caps far lower than the other search tools, and a larger value is rejected by the API."
           },
           "radius": {
             "type": "number",
