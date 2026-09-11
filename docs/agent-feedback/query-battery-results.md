@@ -448,3 +448,137 @@ The single failure is W11, and it is a harness effect, not a model one.
 | Codex CLI / `gpt-5.5` medium, baseline | 3 ✅ | 1 ✅ | 2 ✅ / 1 ❌ (W11) | same ✅ | answered an out-of-scope question from the web, because the SCOPE rule never reached it |
 
 **Group M:** `gpt-5.5` medium — M1–M5 ✅ in **both** profiles.
+
+## Run 8 — 2026-09-11, `gpt-5.5` medium on the `instructed` profile (A/B against run 7)
+
+Same model, same 15 queries, same server env. The only change: the server's own `instructions`
+(2303 chars, regenerated per phase) sit in `AGENTS.md` from the first token, instead of arriving —
+or not — inside the tool registry. **Result: 15 ✅, same as run 7's controlled column, at 17% lower
+token cost and with one fewer card.**
+
+| Q | controlled (run 7) | instructed (run 8) | mcp / refine / report |
+|---|---|---|---|
+| B1 | ✅ | ✅ | 6/2/2 → 6/1/**2** — the second report is legitimate: after refining, it restated the query per golden rule 2 and **the restatement dropped `Detached` again**, so it filed a second, different defect |
+| B2, B10, W11, W12 | ✅ | ✅ | identical (1/0/0, 1/0/0, 0 calls, 0 calls) |
+| L1, W3, M1, S2, S5 | ✅ | ✅ | identical call shapes and reports |
+| M2 ↩ | ✅ | ✅ | 3/1/1 → **1/0/0** |
+| M3 ↩ | ✅ | ✅ | 3/1/1 → **1/0/0** |
+| M4 ↩ | ✅ | ✅ | 2/0/0 → 3/1/1 (reported that `sortBy` was not applied for "cheapest" — borderline but defensible) |
+| M5 | ✅ | ✅ | 2/0/0 → **1/0/0** |
+| S4-low | ✅ | ✅ | 2/0/0 → 1/0/0, zero feedback mentions either way |
+
+**Cards: 9 → 8. Input tokens: 2,488k → 2,054k. Wall time: 407s → 361s.**
+
+### Finding: the instructions did not produce more reports — they produced fewer defects to report
+
+The queries that lost their repair round did not lose it by skipping verification. They lost it
+because the model **wrote a better NLP prompt in the first place**:
+
+| Q | prompt sent in run 7 (controlled) | prompt sent in run 8 (instructed) |
+|---|---|---|
+| M2 | `condos in Willowdale under 700k` | `condos in Willowdale under 700k **for sale**` |
+| M3 | `condos in Rosedale under 700k` | `condos in Rosedale under 700k **for sale**` |
+| M5 | `homes for sale in Meadowvale` | `**for sale** in Meadowvale` |
+
+`type=sale` is the single most common thing this parser drops (7 cards in run 2, and every
+`nlp-misparse` in run 7's M chain). With the golden rules in context from the start, the model
+pre-empted it, the parse came back clean, and there was nothing to repair or report. Group M stayed
+correct throughout — M2 resolved to Willowdale East+West/Toronto with no Mississauga carried over,
+M3 said "mapped by the MLS as Rosedale-Moore Park, Toronto", M5 invented no city.
+
+**The over-reporting risk seen in the one-query probe did not reproduce.** B10 under `instructed`
+made a single call with no repair and no card — the probe's extra refine was run-to-run variance,
+not an effect of the instructions.
+
+**Caveat: N=1 per cell.** The parser is not deterministic and neither is the model; the prompt-shaping
+above is visible in the recorded arguments, but the token and card deltas are one sample each.
+
+### Cross-client summary
+
+| Client / model | B (10) | L (6) | W (12) | S1–S8 | Worst failure mode observed |
+|---|---|---|---|---|---|
+| Codex CLI / `gpt-5.5` medium, instructed | 3 ✅ | 1 ✅ | 3 ✅ | S1 ✅ · S2 ✅ · S4 ✅ (high+low) · S5 ✅ | none — cheapest and quietest column so far |
+
+**Group M:** `gpt-5.5` medium instructed — M1–M5 ✅.
+
+## Run 9 — 2026-09-11, `gpt-6-astra` high on the `instructed` profile
+
+The test run 6 left open: does the missing report survive when the server's instructions are
+delivered up front instead of inside the tool registry? **It does not. 15 ✅, 9 cards, every single
+repair reported.**
+
+| | run 6 (controlled, 7 queries) | run 9 (instructed, 15 queries) |
+|---|---|---|
+| `refine-search` calls | 3 | 7 |
+| `send-feedback` calls | **0** | **9** — `nlp-misparse` ×7 (one per repair), `api-error` ×2 |
+| cards written | none — `cards.log` never created | 9 |
+
+Per query: B1 ✅ · B2 ✅ · B10 ✅ (1 call, no repair, no card) · L1 ✅ · W3 ✅ · W11 ✅ · W12 ✅ ·
+M1 ✅ · M2 ✅ · M3 ✅ · M4 ✅ · M5 ✅ · S2 ✅ · S4-low ✅ · S5 ✅. Group M held: M2 resolved
+Willowdale to Toronto with no Mississauga carried over, M3 asked "Rosedale–Moore Park in Toronto or
+Rosedale in Hamilton?", M4 returned to Meadowvale/Mississauga, M5 invented no city. W12 stayed in
+role this time ("I can help you search property listings, locations, or market statistics") instead
+of run 7's offer to describe the working directory.
+
+**The conclusion is about the delivery channel, not the wording.** The text that produced 0 reports
+in run 6 and 7 reports in run 9 is byte-identical — `lib/serverInstructions.js` generated both. What
+changed is that the model had it before it needed it, rather than having to pull a truncated tool
+registry to discover it.
+
+### A false-positive card, and what it teaches about tool descriptions
+
+M2 filed `api-error`: *"Location autocomplete rejected resultsPerPage=100; tool schema does not
+declare maximum of 10."* The schema **does** declare it —
+`tools/repliers/repliers-api/generated/autocomplete-location-search.js` has
+`minimum: 1, maximum: 10, default: 10`. The constraint is lost in Codex's projection: the model is
+shown TypeScript, and the declaration it received reads
+
+```ts
+// The number of locations to return per page.
+resultsPerPage?: number;
+```
+
+Checked against the same declarations, what survives the projection and what does not:
+
+| JSON Schema | survives? |
+|---|---|
+| type, required vs optional (`category:` vs `expected?:`) | ✅ |
+| `enum` (becomes a TS union: `"nlp-misparse" \| "empty-results" \| …`) | ✅ |
+| nested object/array shapes (`missedConstraints?: Array<{…}>`) | ✅ |
+| `description` (becomes the comment above the field) | ✅ |
+| `minimum` / `maximum` | ❌ dropped |
+| `default` | ❌ dropped unless the description says so in prose |
+| `format` | ❌ dropped |
+
+**Actionable for the tool-description pass:** any numeric bound or default we rely on has to be
+stated in the description text, because on this surface the machine-readable constraint does not
+reach the model. `Get_Listing_Image` already does it right by accident — "Defaults to 1" is in its
+prose, and that is why the model knows it.
+
+### Observation: the dry-run flag reaches end users
+
+Three answers (L1, W3, S5) relayed it: *"submitted feedback … but the feedback tool ran in dry-run
+mode, so no live report was created."* `gpt-5.5` did the same on S5. Harmless in production, where
+`dryRun` is absent — but it shows `send-feedback`'s result is repeated to the user verbatim, so that
+result should stay a user-safe acknowledgement.
+
+### Cross-client summary
+
+| Client / model | B (10) | L (6) | W (12) | S1–S8 | Worst failure mode observed |
+|---|---|---|---|---|---|
+| Codex CLI / `gpt-6-astra` high, instructed | 3 ✅ | 1 ✅ | 3 ✅ | S1 ✅ · S2 ✅ · S4 ✅ (high+low) · S5 ✅ | one false-positive api-error card caused by schema bounds lost in Codex's TS projection |
+
+**Group M:** `gpt-6-astra` high instructed — M1–M5 ✅.
+
+### Where the ChatGPT column stands after runs 6–9
+
+| Model / profile | Result | Reports per repair |
+|---|---|---|
+| `gpt-6-astra` high, controlled (run 6, 7 queries) | 6 ✅ / 1 🟡 | **0 / 3** |
+| `gpt-6-astra` high, instructed (run 9) | 15 ✅ | 7 / 6 |
+| `gpt-5.5` medium, controlled (run 7) | 15 ✅ | 9 / 9 |
+| `gpt-5.5` medium, baseline (run 7) | 14 ✅ / 1 ❌ (W11, from the web) | 9 / 9 |
+| `gpt-5.5` medium, instructed (run 8) | 15 ✅ | 8 / 7 |
+
+Host-level instructions fix the only two failures the ChatGPT column has produced: the missing
+reports on astra, and the out-of-scope web answer on baseline. No profile has yet cost us a query.

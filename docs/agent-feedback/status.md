@@ -87,11 +87,37 @@ a field so the channels cannot drift. A one-query probe already shows the trade-
 being explicit. **Open question for the next run: does host-level delivery buy more than it costs
 in over-reporting?**
 
-Resume point for this track: (1) `gpt-5.5` on `instructed` (full core) — the direct A/B against
-run 7's controlled column; (2) `gpt-6-astra` at low effort, to isolate effort from model on the
-reporting skip; (3) `gpt-5.6-sol`; (4) then decide what to do about the tool descriptions
-themselves — 45 tools × the instruction prefix is the other half of the truncation problem, and a
-consumer-surface roster trim is the obvious lever.
+**Runs 8 and 9 answered the open question: host-level delivery fixes both ChatGPT-column failures,
+and costs nothing.**
+
+- **Run 8** (`gpt-5.5` medium, `instructed`): 15 ✅, same as its controlled column, with **17% fewer
+  input tokens** (2,054k vs 2,488k) and one fewer card. The instructions did not cause more
+  reporting — they caused fewer defects to report: with the golden rules in context the model wrote
+  `condos in Willowdale under 700k **for sale**` instead of `condos in Willowdale under 700k`, and
+  the parser stopped dropping `type=sale`. The over-reporting seen in a one-query probe did not
+  reproduce.
+- **Run 9** (`gpt-6-astra` high, `instructed`): 15 ✅ and **9 cards — every repair reported**, against
+  run 6's 3 repairs / 0 reports on the same byte-identical instruction text. The variable is where
+  the text is delivered, not how it is worded.
+
+**What this means for the product:** on a surface that exposes MCP tools through a searchable
+registry (ChatGPT/Codex code mode), the `instructions` we return from `initialize` are the wrong
+channel — duplicated onto all 45 tool entries, truncated, and never loaded at all for a question
+that needs no tool. The connector's own instruction field is where this text belongs.
+`scripts/print-instructions.mjs` emits it, gated correctly for Trello-less deployments.
+
+**Next: the tool descriptions themselves.** Run 9 produced a false-positive `api-error` card
+claiming our schema does not cap `resultsPerPage` — it does (`maximum: 10`), but Codex shows the
+model TypeScript, and `minimum`/`maximum`/`default`/`format` do not survive that projection
+(`enum`, required-vs-optional, nested shapes and descriptions do). **Any bound or default we rely on
+has to be in the description prose.** That, plus trimming the 45-tool roster for consumer surfaces,
+is the remaining half of the truncation problem.
+
+Resume point for this track: (1) tool-description pass per the table in
+[query-battery-results.md](./query-battery-results.md) run 9; (2) `gpt-6-astra` at **low** effort, to
+check whether effort alone changes reporting without the instructions; (3) `gpt-5.6-sol`, the only
+model observed preferring web search over the MCP server; (4) make `send-feedback`'s result a
+user-safe acknowledgement — three answers relayed the `dryRun` flag to the end user verbatim.
 
 ## Consent policy: `FEEDBACK_CONSENT`
 
