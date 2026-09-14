@@ -4,7 +4,7 @@ Repliers MCP connects the Repliers API to AI assistants like ChatGPT, Claude, Cl
 
 There are two ways to use Repliers MCP:
 
-* **Hosted MCP** *(recommended)* — connect directly to Repliers' MCP Server at `https://mcp.repliers.io` and sign in with your Repliers account. No server setup, and no API key ever goes into your client configuration.
+* **Hosted MCP** *(recommended)* — connect directly to Repliers' MCP Server at https://mcp.repliers.io and sign in with your Repliers account. No server setup, and no API key ever goes into your client configuration.
 * **Open Source / Self-hosted** *(for technical users)* — run your own instance using the [Repliers MCP Server on GitHub](https://github.com/Repliers-io/mcp-server) with your API key in the environment. Recommended for developers who want full control over their environment or need a customized setup.
 
 ---
@@ -59,7 +59,7 @@ The hosted MCP server is the fastest and easiest way to get started — no insta
 https://mcp.repliers.io
 ```
 
-Both `https://mcp.repliers.io` and `https://mcp.repliers.io/mcp` are accepted; use whichever your client prefers. The server speaks Streamable HTTP and authenticates with **OAuth 2.1**: your client opens a browser window, you sign in with your Repliers account, and the client is returned an access token. The API key you linked in Step 1 is then used for every request — it never appears in your client's configuration.
+Both https://mcp.repliers.io and https://mcp.repliers.io/mcp are accepted; use whichever your client prefers. The server speaks Streamable HTTP and authenticates with **OAuth 2.1**: your client opens a browser window, you sign in with your Repliers account, and the client is returned an access token. The API key you linked in Step 1 is then used for every request — it never appears in your client's configuration.
 
 ### Connecting via Claude (claude.ai and Claude Desktop)
 
@@ -73,11 +73,25 @@ Once connected, Claude will have access to all Repliers MCP tools in your conver
 
 ### Connecting via ChatGPT
 
-1. In ChatGPT, go to **Settings → Connectors** (or your workspace's app/plugin management area)
-2. Select **Add a custom connector** or **MCP Server**
-3. Enter the hosted MCP URL: https://mcp.repliers.io
-4. Save the configuration
+|| ⚠️ **Set up from the ChatGPT web app** at https://chatgpt.com, not the desktop apps. At the moment the macOS and Windows apps either do not show the option to add a plugin or fail partway through the connection. Once the plugin is created on the web it is available in the desktop and mobile apps as well.
+
+**Before you start: remove any existing Repliers plugin.** If you previously added Repliers to ChatGPT as a personal plugin (MCP server), you must remove it first. With two plugins offering the same tools, ChatGPT cannot decide which server to use and every request fails with an error.
+
+1. In ChatGPT on the web, open **Plugins** and select **Personal** (https://chatgpt.com/plugins?view=personal). The custom MCP servers you added are listed under **Created by me**
+2. Find your existing **Repliers** plugin, press **…** on its row and select **Uninstall**. If the row shows **+** instead of **…**, the plugin is already uninstalled — nothing to do
+
+|| **Note:** Uninstalling does not delete the plugin — it stays under **Created by me** with a **+** to reinstall it, and its name stays taken. You can try removing it for good with **… → Manage → Delete**, but this does not always work; if the plugin is still listed afterwards, simply give the new plugin a different name in the next step.
+
+Then add the hosted server:
+
+1. Still on **Plugins → Personal**, press the **+** button at the top right, next to the search box
+2. Enter a **name** that is not already used by a plugin under **Created by me** — for example **Repliers New** if "Repliers" is taken. ChatGPT will not create a second plugin with a name that is already in use; the name is only a label and does not affect how the tools work
+3. Enter the MCP server URL: https://mcp.repliers.io/mcp
+4. Leave authentication set to OAuth and save
 5. When prompted, sign in to your Repliers account to complete authorization
+6. Review the list of discovered tools — you should see `Search_Listings`, `Market_Statistics` and the rest of the roster below
+
+|| **Note:** You do not need ChatGPT's *Developer mode* for this — that is a separate, Pro-plan feature. Personal plugins are available on the Plus plan.
 
 #### Watch The Video!
 
@@ -93,7 +107,7 @@ Then run `/mcp` inside Claude Code and choose **Authenticate** next to `repliers
 
 ### Connecting via Codex, Cursor and other MCP clients
 
-Any client that supports remote MCP servers over Streamable HTTP with OAuth 2.1 can connect. Add a remote (HTTP) server with the URL `https://mcp.repliers.io/mcp`, leave authentication set to OAuth, and complete the browser sign-in when the client prompts for it.
+Any client that supports remote MCP servers over Streamable HTTP with OAuth 2.1 can connect. Add a remote (HTTP) server with the URL https://mcp.repliers.io/mcp, leave authentication set to OAuth, and complete the browser sign-in when the client prompts for it.
 
 || **First-time sign-in:** On your first connection from any client, you will be redirected to sign in to Repliers if you are not already authenticated. Complete the sign-in flow and you will be returned to your client automatically.
 
@@ -148,7 +162,7 @@ node mcpServer.js          # stdio — for Claude Desktop, Postman, and other lo
 node mcpServer.js --http   # Streamable HTTP on http://localhost:3001/mcp (and /) — for remote-MCP clients
 ```
 
-|| **Note:** Earlier versions were started with `--sse`. That flag is still accepted as an alias, but the transport is now Streamable HTTP, served at both `/mcp` and `/`. Point clients at `http://localhost:3001/mcp`.
+|| **Note:** Earlier versions were started with `--sse`. That flag is still accepted as an alias, but the transport is now Streamable HTTP, served at both `/mcp` and `/`. Point clients at http://localhost:3001/mcp.
 
 ### Testing with Postman (Optional but Recommended)
 
@@ -246,7 +260,7 @@ Make sure your `.env` file contains your `REPLIERS_API_KEY`. `-i` is required (w
 ### Optional configuration
 
 | Variable | Effect |
-| --- | --- |
+| ---- |
 | `REPLIERS_API_BASE_URL` | Points every tool at a different Repliers deployment (default `https://api.repliers.io`) |
 | `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `TRELLO_LIST_ID` | Enables the `send-feedback` tool, which files search-quality reports as Trello cards on your own board. Without all three, the tool is hidden and the assistant is never asked to report anything |
 | `FEEDBACK_DRY_RUN` | `true` enables `send-feedback` without Trello keys; reports are written to the server's log instead of posted |
@@ -263,7 +277,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Listings
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `Search_Listings` | Natural-language search of active, sold or leased listings via Repliers NLP — the entry point for every new search. Requires NLP to be enabled (Step 2). Responses lead with `appliedFilters`, the ground truth of what was searched |
 | `refine-search` | Surgically corrects a previous `Search_Listings` result when a constraint was dropped or substituted, re-running it with only the named parameters changed. Never starts a search from scratch |
 | `get-listing` | Fetch detailed information for a specific listing by MLS number |
@@ -275,7 +289,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Locations & Buildings
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `search-locations` | Search geographic locations supported by the Repliers API |
 | `autocomplete-location-search` | Autocomplete location queries for search inputs |
 | `search-buildings` | Search building-level data for condos, apartments, and complexes |
@@ -283,7 +297,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Agents, Members & Brokerages
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `search-agents` | Search for agents |
 | `get-agent` | Retrieve details for a specific agent |
 | `create-agent` | Create a new agent record |
@@ -295,7 +309,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Clients
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `search-clients` | Search for clients |
 | `get-client` | Retrieve details for a specific client |
 | `create-client` | Create a new client record |
@@ -304,7 +318,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Saved Searches
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `list-saved-searches` | List all saved searches |
 | `get-saved-search` | Retrieve a specific saved search |
 | `create-saved-search` | Create a new saved search |
@@ -316,13 +330,13 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Favorites
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `list-favorites` | List favorited listings |
 | `remove-favorite` | Remove a listing from favorites |
 
 ### Estimates
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `list-estimates` | List property estimates |
 | `create-estimate` | Create a new property estimate |
 | `update-estimate` | Update an existing estimate |
@@ -330,7 +344,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Messaging & NLP
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `list-messages` | List messages |
 | `get-message` | Retrieve a specific message |
 | `send-message` | Send a message |
@@ -339,7 +353,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Feedback
 | Tool | Description |
-| ---- | ---- |
+| ---- |
 | `send-feedback` | Report a search-quality or API problem to the Repliers team (an NLP misparse, an API error, wrong or empty results). Available on the hosted server; on a self-hosted server only when Trello keys are configured |
 
 Every tool is annotated as read-only or mutating, so clients that hide write operations (for example read-only ChatGPT connectors) filter the list automatically.
@@ -369,6 +383,15 @@ Ensure you're completing the Repliers sign-in flow fully. If the issue persists,
 
 **`Search_Listings` fails but other tools work**
 NLP is not enabled on the linked API key. Follow Step 2.
+
+**ChatGPT shows no option to add a plugin, or the connection fails partway (desktop app)**
+Set up from the web app at https://chatgpt.com instead. The desktop apps do not currently support adding a custom MCP plugin; once it is created on the web, it appears in the desktop and mobile apps.
+
+**ChatGPT errors about which MCP server to use**
+An earlier Repliers plugin is still installed alongside the new one. In ChatGPT on the web, open **Plugins → Personal**, press **…** on the old Repliers plugin and select **Uninstall**, then try again — see *Connecting via ChatGPT* above.
+
+**ChatGPT will not accept the plugin name**
+A plugin with that name already exists under **Plugins → Personal → Created by me** — uninstalled plugins stay listed there and keep their name. Try **… → Manage → Delete** on the old plugin; if it is still listed afterwards (this does not always work), choose a different name, for example **Repliers New**. The name is only a label.
 
 **`npm install` refuses to run (self-hosted)**
 Your Node.js version does not match `.nvmrc`. Install the pinned version (or run `nvm use` / `fnm use`) and try again.
