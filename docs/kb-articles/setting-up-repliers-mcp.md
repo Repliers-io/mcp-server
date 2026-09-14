@@ -107,7 +107,24 @@ Then run `/mcp` inside Claude Code and choose **Authenticate** next to `repliers
 
 ### Connecting via Codex, Cursor and other MCP clients
 
-Any client that supports remote MCP servers over Streamable HTTP with OAuth 2.1 can connect. Add a remote (HTTP) server with the URL https://mcp.repliers.io/mcp, leave authentication set to OAuth, and complete the browser sign-in when the client prompts for it.
+Add a remote (HTTP) server with the URL https://mcp.repliers.io/mcp, leave authentication set to OAuth, and complete the browser sign-in when the client prompts for it.
+
+### Supported MCP clients
+
+The Repliers sign-in only returns to clients whose OAuth callback URLs are registered with us. These clients are supported today:
+
+* Claude Desktop
+* Claude Code
+* ChatGPT
+* Codex
+* Copilot
+* Cursor
+* Antigravity
+* Smithery
+* Perplexity AI
+* LeadConnector
+
+If you connect from a client that is not on this list and get an OAuth error during sign-in, [reach out to Repliers support](https://repliers.com) — we can add it.
 
 || **First-time sign-in:** On your first connection from any client, you will be redirected to sign in to Repliers if you are not already authenticated. Complete the sign-in flow and you will be returned to your client automatically.
 
@@ -377,6 +394,9 @@ Make sure you've linked an API key in the Repliers Developer Portal (Step 1 abov
 
 **I'm being asked to sign in again after an update**
 Expected once: the hosted server moved to OAuth 2.1 and existing connectors must re-authorize. Complete the sign-in and it will not ask again until the token expires.
+
+**Sign-in fails with an OAuth error (redirect or callback not allowed)**
+Your MCP client is probably not on the [supported clients list](#supported-mcp-clients) — the Repliers sign-in only returns to registered callback URLs. Reach out to Repliers support with the name of the client the the required callback URLs and we can add it.
 
 **I'm being asked to sign in on every connection**
 Ensure you're completing the Repliers sign-in flow fully. If the issue persists, remove and re-add the connector, or unlink and re-link your API key in the Developer Portal.
