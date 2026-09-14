@@ -73,11 +73,25 @@ Once connected, Claude will have access to all Repliers MCP tools in your conver
 
 ### Connecting via ChatGPT
 
-1. In ChatGPT, go to **Settings → Connectors** (or your workspace's app/plugin management area)
-2. Select **Add a custom connector** or **MCP Server**
-3. Enter the hosted MCP URL: https://mcp.repliers.io
-4. Save the configuration
+|| ⚠️ **Set up from the ChatGPT web app** at https://chatgpt.com, not the desktop apps. At the moment the macOS and Windows apps either do not show the option to add a plugin or fail partway through the connection. Once the plugin is created on the web it is available in the desktop and mobile apps as well.
+
+**Before you start: remove any existing Repliers plugin.** If you previously added Repliers to ChatGPT as a personal plugin (MCP server), you must remove it first. With two plugins offering the same tools, ChatGPT cannot decide which server to use and every request fails with an error.
+
+1. In ChatGPT on the web, open **Plugins** and select **Personal** (https://chatgpt.com/plugins?view=personal). The custom MCP servers you added are listed under **Created by me**
+2. Find your existing **Repliers** plugin, press **…** on its row and select **Uninstall**. If the row shows **+** instead of **…**, the plugin is already uninstalled — nothing to do
+
+|| **Note:** Uninstalling does not delete the plugin — it stays under **Created by me** with a **+** to reinstall it, and its name stays taken. You can try removing it for good with **… → Manage → Delete**, but this does not always work; if the plugin is still listed afterwards, simply give the new plugin a different name in the next step.
+
+Then add the hosted server:
+
+1. Still on **Plugins → Personal**, press the **+** button at the top right, next to the search box
+2. Enter a **name** that is not already used by a plugin under **Created by me** — for example **Repliers New** if "Repliers" is taken. ChatGPT will not create a second plugin with a name that is already in use; the name is only a label and does not affect how the tools work
+3. Enter the MCP server URL: https://mcp.repliers.io/mcp
+4. Leave authentication set to OAuth and save
 5. When prompted, sign in to your Repliers account to complete authorization
+6. Review the list of discovered tools — you should see `Search_Listings`, `Market_Statistics` and the rest of the roster below
+
+|| **Note:** You do not need ChatGPT's *Developer mode* for this — that is a separate, Pro-plan feature. Personal plugins are available on the Plus plan.
 
 #### Watch The Video!
 
@@ -369,6 +383,15 @@ Ensure you're completing the Repliers sign-in flow fully. If the issue persists,
 
 **`Search_Listings` fails but other tools work**
 NLP is not enabled on the linked API key. Follow Step 2.
+
+**ChatGPT shows no option to add a plugin, or the connection fails partway (desktop app)**
+Set up from the web app at https://chatgpt.com instead. The desktop apps do not currently support adding a custom MCP plugin; once it is created on the web, it appears in the desktop and mobile apps.
+
+**ChatGPT errors about which MCP server to use**
+An earlier Repliers plugin is still installed alongside the new one. In ChatGPT on the web, open **Plugins → Personal**, press **…** on the old Repliers plugin and select **Uninstall**, then try again — see *Connecting via ChatGPT* above.
+
+**ChatGPT will not accept the plugin name**
+A plugin with that name already exists under **Plugins → Personal → Created by me** — uninstalled plugins stay listed there and keep their name. Try **… → Manage → Delete** on the old plugin; if it is still listed afterwards (this does not always work), choose a different name, for example **Repliers New**. The name is only a label.
 
 **`npm install` refuses to run (self-hosted)**
 Your Node.js version does not match `.nvmrc`. Install the pinned version (or run `nvm use` / `fnm use`) and try again.
