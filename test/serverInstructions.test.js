@@ -23,13 +23,13 @@ afterEach(() => {
   }
 });
 
-test("with Trello configured: instructions mention send-feedback and rule 3 is Repair first", () => {
+test("with Trello configured: instructions mention send-feedback and rule 3 is Report", () => {
   process.env.TRELLO_API_KEY = "k";
   process.env.TRELLO_API_TOKEN = "t";
   process.env.TRELLO_LIST_ID = "l";
   const instructions = buildServerInstructions();
   assert.ok(instructions.includes("send-feedback"), "should mention send-feedback");
-  assert.match(instructions, /3\. Repair first/, "rule 3 should be Repair first");
+  assert.match(instructions, /3\. Report/, "rule 3 should be the reporting rule");
   assert.match(instructions, /4\. _feedback/, "rule 4 should be the _feedback rule");
 });
 
@@ -75,15 +75,42 @@ test("always-ask mode: rule 3 requires consent for every send", () => {
   assert.match(rule3, /every category|including/i, "must cover technical failures too");
 });
 
-test("both branches open with the real-estate role, not the host persona", () => {
+// The role sentence moved to skills/repliers-real-estate/SKILL.md: OpenAI's plugin guidance for
+// this field is "do not repeat every tool description or try to change the model's personality",
+// and run 4 had already found that instructions carry data facts well and personas poorly. These
+// two tests pin the shape so it cannot drift back.
+test("both branches open with the required tool sequence, inside the first 512 characters", () => {
   const withoutTrello = buildServerInstructions();
   withTrello();
   const withTrelloText = buildServerInstructions();
   for (const text of [withoutTrello, withTrelloText]) {
-    assert.match(text, /real[- ]estate/i);
-    assert.match(text, /regardless of|whatever .*persona|host application/i,
-      "must tell the agent to adopt the role over the host's default persona");
+    assert.match(text.slice(0, 512), /Required sequence/,
+      "the cross-tool sequence must lead — hosts only guarantee the first 512 characters");
+    assert.match(text.slice(0, 512), /appliedFilters/,
+      "the verification step must be inside the first 512 characters");
   }
+});
+
+test("neither branch sets a persona or re-lists the tool roster", () => {
+  const withoutTrello = buildServerInstructions();
+  withTrello();
+  const withTrelloText = buildServerInstructions();
+  for (const text of [withoutTrello, withTrelloText]) {
+    assert.doesNotMatch(text, /you are the|whatever persona|host application/i,
+      "persona belongs in the skill, not in the instructions field");
+    assert.doesNotMatch(text, /tool families/i,
+      "the roster describes itself — do not repeat it here");
+  }
+});
+
+test("the skill carries the role the instructions no longer state", async () => {
+  const { readFileSync } = await import("node:fs");
+  const skill = readFileSync(new URL("../skills/repliers-real-estate/SKILL.md", import.meta.url), "utf8");
+  assert.match(skill, /^---\nname: repliers-real-estate\ndescription: /,
+    "must open with the frontmatter the submission portal reads");
+  assert.match(skill, /real[- ]estate assistant/i, "must state the role");
+  assert.ok(!skill.includes("send-feedback"),
+    "the skill is a static snapshot and cannot be gated on Trello config, so it must never mention send-feedback");
 });
 
 test("both branches state what the server does NOT have", () => {
