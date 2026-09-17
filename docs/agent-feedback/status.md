@@ -41,14 +41,22 @@ inverts: reporting an api-error without asking becomes a FAIL instead of the PAS
 hard depends on the tier.** Tools are deferred behind Codex's `tool_search` (hardwired, no
 toggle), which is survivable: models do find them. Built-in web search is the real competitor.
 `condos for sale in Toronto` on `gpt-5.6-sol` was answered from realtor.ca with **zero** MCP
-calls on two separate runs against a verified-healthy server; the same model and prompt with
-`-c tools.web_search=false` made 12 MCP calls and independently re-found the `type=sale` upstream
-defect (NLP drops the sale filter) through verify → `refine-search` → `send-feedback`. But
-`gpt-6-astra` at high effort chose the MCP server on that prompt **with web search still
-available**. Hence two profiles per model — `baseline` (real `~/.codex`) and `controlled`
-(isolated `CODEX_HOME`, web off, realtor persona in `AGENTS.md`) — with the delta reported as the
-harness's contribution, expected widest at the weak end. Details and commands:
+calls on two separate runs against a verified-healthy server; a third run of the same prompt made
+12 MCP calls and independently re-found the `type=sale` upstream defect (NLP drops the sale filter)
+through verify → `refine-search` → `send-feedback`. `gpt-6-astra` at high effort chose the MCP
+server on that prompt too. Hence two profiles per model — `baseline` (real `~/.codex`) and
+`controlled` (isolated `CODEX_HOME`, realtor persona in `AGENTS.md`) — with the delta reported as
+the harness's contribution, expected widest at the weak end. Details and commands:
 [query-battery.md](./query-battery.md) §"Codex CLI: two profiles".
+
+**Correction (2026-09-17): neither profile blocks web search.** The third run above was attributed
+to `-c tools.web_search=false`; that key is accepted by the config parser but does **not** gate web
+search in `codex exec` 0.153.4 — under it, an explicit "search the web" request still produced two
+`web_search` calls. So the profiles differ in plugins and persona, not in web access, and web use is
+handled by grading, not blocking: the runner counts `web` calls per query and any use of them for
+property or market data fails the battery's own fabrication rule. That counter read zero on 45 of
+46 controlled/instructed queries across runs 7–9; the exception is W11 (mortgage rates), which is
+exactly the question no amount of tool-side guidance reaches — it loads no tools at all.
 
 **Run 6 (2026-09-11, `gpt-6-astra`/high, 7 queries — runner-validation smoke, graded):** 6 ✅ /
 1 🟡, full entry in [query-battery-results.md](./query-battery-results.md). Group M is clean on
@@ -129,11 +137,52 @@ constraints across 44 tools are stated only machine-readably (142 `format`, 29 `
 `minPrice ≥ 0`). If this ever needs doing wholesale, the lever is a helper in `codegen/generate.js`
 that appends bounds to each parameter description at generation time — not 39 hand edits.
 
+## Shaped for ChatGPT publication (2026-09-17)
+
+Checked against OpenAI's current docs, because two of our assumptions had gone stale and one was
+never verified. Corrections recorded in [mcp-client-research.md](./mcp-client-research.md):
+
+- **Developer Mode on Plus and Pro is a full MCP client, read *and* write** — not read/fetch-only
+  as the August research said. Our own users have been connecting this server on Plus since
+  mid-September. `send-feedback` is therefore not gated out on consumer plans.
+- **Skills are part of the plugin submission flow.** A plugin is a bundle: `skills/` plus an
+  `mcp.json`. "Scan Tools" imports tool metadata, annotations, the server `instructions` **and
+  static skills** from the endpoint; skills can also be uploaded as an archive. Imported skills are
+  a **submission-time snapshot** — published plugins do not update them live. A skill loads in two
+  stages: name and description are always in context, the body loads when the request matches.
+- **The `instructions` field has published rules** our text broke: keep the important detail in the
+  first 512 characters, use it for cross-tool guidance such as required tool sequences, and do not
+  repeat tool descriptions or try to change the model's personality.
+
+**What changed.** `lib/serverInstructions.js` now opens with the required sequence
+(`Search_Listings` → check `appliedFilters` → repair → report) and keeps the verify rule inside the
+first 512 characters; the tool-family paragraph and the persona sentence are gone; the data-scope
+paragraph stays, since it is a fact about the data and it is what fixed W11. **2303 → 1647
+characters**, which also cuts the ~45× duplication on ChatGPT/Codex from 103 KB to 72 KB. The role
+moved to **`skills/repliers-real-estate/SKILL.md`** — the channel built for workflow and persona
+material, and the same split run 4 had already found empirically.
+
+The skill deliberately **never mentions `send-feedback`**: it is a static snapshot that cannot be
+gated on Trello config, and the convention is that no channel may promise a tool that is absent
+from the roster. Reporting guidance stays in `instructions` and the `_feedback` blocks, which are
+gated. A test pins this.
+
+Serving skills from the server (so "Scan Tools" imports them instead of an upload) needs the MCP
+skills extension — `io.modelcontextprotocol/skills` in `capabilities.extensions`, plus
+`skills/list`, `skills/get` and `resources/read` with SHA-256 digests, ≤5 MiB per skill. **Not
+implemented**; the bundle-upload route needs no server work.
+
+Still missing for an actual submission: OAuth (blocked, see [oauth21/status.md](../oauth21/status.md)),
+domain verification, listing/policy URLs, verified publisher identity, and five positive plus three
+negative test cases. Tool annotations are already emitted by `lib/tools.js`.
+
 Resume point for this track: (1) `gpt-6-astra` at **low** effort, to check whether effort alone
 changes reporting without the instructions; (2) `gpt-5.6-sol`, the only model observed preferring
 web search over the MCP server; (3) make `send-feedback`'s result a user-safe acknowledgement —
 three answers relayed the `dryRun` flag to the end user verbatim; (4) the 45-tool roster on
-consumer surfaces, which is the other half of the registry-truncation problem.
+consumer surfaces, which is the other half of the registry-truncation problem; (5) a fourth runner
+profile that emulates the real ChatGPT shape (compact `instructions` + a lazily-loaded skill)
+rather than `instructed`'s always-in-context text, which is an upper bound, not what ships.
 
 ## Consent policy: `FEEDBACK_CONSENT`
 

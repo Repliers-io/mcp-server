@@ -354,10 +354,13 @@ Repliers servers muted.
    headline failure. Worth re-testing on `gpt-5.5` before concluding anything about the family.
 3. **The Codex harness competes with the MCP server, and how hard depends on the tier.** On
    `gpt-5.6-sol`, `condos for sale in Toronto` was answered from realtor.ca with zero MCP calls on
-   two separate runs against a verified-healthy server; with `-c tools.web_search=false` the same
-   model made 12 MCP calls and ran the full verify → repair → report loop — **including the report**,
-   which `gpt-6-astra` skipped. `gpt-6-astra` chose the MCP server with web search still available.
-   Hence the two profiles; expect the delta widest at the weak end.
+   two separate runs against a verified-healthy server; a third run of the same prompt made 12 MCP
+   calls and ran the full verify → repair → report loop — **including the report**, which
+   `gpt-6-astra` skipped. `gpt-6-astra` chose the MCP server too. Hence the two profiles; expect
+   the delta widest at the weak end. *(Corrected 2026-09-17: the third run was originally credited
+   to `-c tools.web_search=false`. That key does not gate web search in `codex exec` 0.153.4 —
+   verified directly — so the difference is not attributable to it. Web use is graded, not blocked;
+   see [query-battery.md](./query-battery.md).)*
 4. **The `type=sale` upstream defect reproduced independently.** During setup probing, `gpt-5.6-sol`
    found it unaided: "single newest condo for sale" lost the sale filter and returned a rental. Same
    defect as run 2's 7 cards, found by a different vendor's model — it is the API, not a Claude artifact.

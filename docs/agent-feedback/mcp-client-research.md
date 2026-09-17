@@ -31,10 +31,45 @@
 |---|---|---|---|
 | claude.ai | YES | all plans, incl. Free (Free = one custom connector); Settings > Connectors | iOS/Android ✓ |
 | grok.com | YES ("Bring Your Own MCP", May 6 2026) | free-tier web since ~Jul 28 2026 (one conflicting source says SuperGrok — verify); grok.com/connectors > New > Custom > URL | announced Web/iOS/Android |
-| ChatGPT | Plus/Pro/Business+ only | Developer Mode (beta, web only); Plus/Pro custom connectors are read/fetch-only; write-capable only on Business/Enterprise/Edu | dev mode web-only |
+| ChatGPT | Plus/Pro/Business/Enterprise/Edu (not Free) | Developer Mode = **full MCP client, read AND write**, on Plus and Pro too (Settings → Apps & Connectors → Developer mode). Write calls are subject to per-call confirmation | dev mode web-only |
 | Gemini app | NO | no add-a-connector option in consumer app (as of Jul 2026); custom MCP only in Gemini Enterprise and Spark tasks (3 launch partners: Canva, OpenTable, Instacart; no submission process published) | — |
 
-Implication for `send-feedback` on ChatGPT: check our tool annotations (e.g. `readOnlyHint`) — what ChatGPT exposes on Plus may depend on them.
+**Corrected 2026-09-17** (the row above previously said Plus/Pro were read/fetch-only): OpenAI's
+developer-mode guide documents full read+write MCP for Plus and Pro, and our own users have been
+connecting this server on Plus since mid-September. So `send-feedback` is **not** gated out on
+consumer plans — the earlier concern about `readOnlyHint` filtering it away does not apply in
+developer mode. Sources: [developer mode guide](https://developers.openai.com/api/docs/guides/developer-mode),
+[help centre](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt).
+
+### Publishing to the ChatGPT app/plugin directory (checked 2026-09-17)
+
+A plugin is an installable bundle: a `skills/` directory plus an `mcp.json` for the servers shipped
+with it. For a remote MCP submission, **"Scan Tools" imports tool metadata, annotations, the server
+`instructions` — and static skills — from our endpoint into the submission draft**; skills can also
+be uploaded as an archive. Two facts that shape how we treat them:
+
+- **Imported skills are a submission-time snapshot.** "ChatGPT and Codex do not fetch them from your
+  MCP server at runtime" — changing a skill means re-scanning and submitting a new plugin version,
+  unlike tool definitions, which stay live.
+- **A skill loads in two stages.** "The model first sees skill metadata, including the name and
+  description … It loads the complete instructions when the user's request matches the skill or the
+  user invokes it directly." So the description is the always-present part and does the triggering;
+  the body is conditional.
+
+OpenAI's guidance for the server `instructions` field is explicit, and our current text (2303 chars)
+breaks all three rules: *"Keep the most important details in the first 512 characters"*, *"use server
+instructions for guidance that applies across tools, such as required tool sequences"*, *"do not
+repeat every tool description or try to change the model's personality"* — ours opens with a persona
+sentence, enumerates the tool families, and reaches the golden rules only around character 700.
+
+Submission also requires: listing details with policy URLs, verified publisher identity, domain
+verification via a well-known endpoint, OAuth/CSP configuration, per-tool annotations
+(`readOnlyHint`/`openWorldHint`/`destructiveHint` — already emitted by `lib/tools.js`), five positive
+and three negative test cases, and test credentials that work without MFA. Sources:
+[submit plugins](https://developers.openai.com/plugins/deploy/submission),
+[build skills](https://developers.openai.com/plugins/build/skills),
+[skills concepts](https://developers.openai.com/plugins/concepts/skills),
+[build an MCP server](https://developers.openai.com/plugins/build/mcp-server).
 
 ## 4. Client fact sheets (verified 2026-08-28)
 

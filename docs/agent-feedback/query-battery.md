@@ -28,20 +28,30 @@ Codex does not put MCP tools in the model's opening prompt — they sit behind i
 handler (`tool_search_always_defer_mcp_tools`, stage *removed* = hardwired, no toggle). That alone
 is survivable: the model finds them. What competes with them is **built-in web search** — on
 `condos for sale in Toronto` `gpt-5.6-sol` answered from realtor.ca with zero MCP calls, twice,
-against a verified-healthy server; with `-c tools.web_search=false` the same model and prompt
-produced 12 MCP calls and a full verify → `refine-search` → `send-feedback` loop.
+against a verified-healthy server; a third run of the same prompt produced 12 MCP calls and a full
+verify → `refine-search` → `send-feedback` loop.
 
 The pull is tier-dependent, which is exactly why it gets measured rather than assumed: on the
-same prompt with web search still available, `gpt-6-astra` at high effort went to the MCP server
-unprompted (1 call, 0 searches). Expect the baseline↔controlled delta to be widest at the weak
-end of the matrix.
+same prompt, `gpt-6-astra` at high effort went to the MCP server unprompted (1 call, 0 searches).
+Expect the baseline↔controlled delta to be widest at the weak end of the matrix.
+
+> **Correction, 2026-09-17 — no profile actually blocks web search.** `tools.web_search=false` is a
+> valid config key (an unknown one is rejected by `--strict-config`, this one is not) but it does
+> **not** gate web search in `codex exec` on 0.153.4: under that flag, a direct "search the web for
+> today's headline" still produced two `web_search` calls. The third `gpt-5.6-sol` run above was
+> originally read as evidence that the flag works; it is not — the flag was the only thing changed,
+> but the outcome is equally consistent with run-to-run variance. What the profiles differ in is the
+> plugin/persona environment, not web access. Practically this is handled by grading rather than
+> blocking: the runner records `web` calls per query, and any use of web search for property or
+> market data is a failure by the battery's own "invents listings, prices, or capabilities" rule.
+> Across runs 7–9 that counter read zero on 45 of 46 controlled/instructed queries.
 
 So every Codex row is run twice, and the delta is the harness's contribution:
 
 | Profile | Setup | Answers |
 |---|---|---|
 | `baseline` | the operator's real `~/.codex` (plugins, web search, Codex's own persona), hosted + Heroku-dev Repliers servers muted per run so only localhost replies | what a ChatGPT-side user actually gets |
-| `controlled` | isolated `CODEX_HOME` = `mcp-eval/.codex-eval` (only this server, no plugins), `tools.web_search=false`, workspace `mcp-eval/codex-controlled` whose `AGENTS.md` sets the realtor persona | model quality on our tools, comparable to the Claude Code columns |
+| `controlled` | isolated `CODEX_HOME` = `mcp-eval/.codex-eval` (only this server, no plugins), `tools.web_search=false` (set, but see the correction below — it does not actually block), workspace `mcp-eval/codex-controlled` whose `AGENTS.md` sets the realtor persona | model quality on our tools, comparable to the Claude Code columns |
 | `instructed` | `controlled` plus the server's own `instructions` delivered up front in `AGENTS.md`, regenerated per phase from `lib/serverInstructions.js` | what a host-level instruction field buys us (the ChatGPT connector's instructions box) |
 
 ### Why `instructed` exists: how Codex actually delivers our tools

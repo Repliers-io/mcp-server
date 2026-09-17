@@ -543,6 +543,12 @@ async function main() {
         console.log(`FAILED (${reason}) - ${Math.round(durationMs / 1000)}s`);
         const detail = child.stderr.split(/\r?\n/).filter((l) => l.trim() && !l.startsWith("Reading additional input"))[0];
         if (detail) console.log(`[eval-codex]   ${detail.slice(0, 200)}`);
+        // The isolated profiles run on a COPY of ~/.codex/auth.json, which expires on its own
+        // schedule and then fails every query in seconds. Name the fix rather than the symptom.
+        if (/Failed to refresh token|401 Unauthorized/.test(child.stderr) && setup.env.CODEX_HOME) {
+          console.log(`[eval-codex]   the eval login has expired — refresh it with:`);
+          console.log(`[eval-codex]   cp ~/.codex/auth.json "${join(setup.env.CODEX_HOME, "auth.json")}"`);
+        }
       } else {
         console.log(
           `done - ${facts.mcpCalls.length} MCP - ${facts.webSearches.length} web - ${Math.round(durationMs / 1000)}s`,
