@@ -243,7 +243,26 @@ export async function startMcpServer({ propelAuth, repliersApiPort, env = {} }) 
   return { port, child, log: () => log, close: () => child.kill() };
 }
 
-export function mcpFetch(port, { token, sessionId, body, method = "POST" }) {
+/**
+ * Waits for `pattern` to show up in the child's captured output. The child writes its log to a
+ * pipe, so a line is never guaranteed to have arrived by the time its HTTP response has.
+ */
+export async function waitForLog(mcp, pattern, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (mcp.log().match(pattern)) return;
+    if (Date.now() > deadline) assert.fail(`log never matched ${pattern}:
+${mcp.log()}`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/**
+ * `headers` is last word, so a suite can send a protocol version of its own choosing. Name them
+ * in lower case: the defaults below are, and fetch would send a differently-cased duplicate as a
+ * second value rather than a replacement.
+ */
+export function mcpFetch(port, { token, sessionId, body, method = "POST", headers: extra = {} }) {
   const headers = {
     accept: "application/json, text/event-stream",
     "content-type": "application/json",
@@ -252,7 +271,7 @@ export function mcpFetch(port, { token, sessionId, body, method = "POST" }) {
   if (sessionId) headers["mcp-session-id"] = sessionId;
   return fetch(`http://127.0.0.1:${port}/mcp`, {
     method,
-    headers,
+    headers: { ...headers, ...extra },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
