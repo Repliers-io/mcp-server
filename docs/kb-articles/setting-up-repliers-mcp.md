@@ -17,6 +17,7 @@ Before connecting any MCP client to the hosted server, you need to authorize a R
 2. Find the API key you want to use and click the **MCP icon** next to it
 3. That key is now linked to Repliers MCP
 
+![How to link API Key to MCP server](https://storage.crisp.chat/users/helpdesk/website/-/9/5/7/a/957a8eb8f0b80800/screenshot-2026-10-02-at-09441_31a8lc.png)
 || **Note:** Only one API key can be linked to Repliers MCP at a time. Linking a new key will unlink the previous one. You do not need to reconnect or sign in again after changing the linked key.
 
 ---
@@ -25,7 +26,7 @@ Before connecting any MCP client to the hosted server, you need to authorize a R
 
 The `Search_Listings` tool works differently from most MCP tools — instead of relying on the AI assistant to structure the API request, it passes your natural language query directly to Repliers' own NLP endpoint. This approach was chosen because it produces significantly more accurate results: Repliers' NLP layer understands MLS-specific terminology, normalizes values to match MLS® standards, and supports context-aware conversational searches.
 
-Because the NLP endpoint is powered by OpenAI, **you must link a valid OpenAI API key to your Repliers API key before `Search_Listings` will work.** Every other tool works without it.
+Because the NLP endpoint is powered by OpenAI, **you must link a valid OpenAI API key to your Repliers API key before** **`Search_Listings`** **will work.** Every other tool works without it.
 
 ### How to Enable NLP Search
 
@@ -193,7 +194,7 @@ Before connecting to an AI client, you can verify your server is working using t
 node /absolute/path/to/mcpServer.js
 ```
 
-   To find the absolute path, run:
+To find the absolute path, run:
 
 ```bash
 realpath mcpServer.js
@@ -277,7 +278,7 @@ Make sure your `.env` file contains your `REPLIERS_API_KEY`. `-i` is required (w
 ### Optional configuration
 
 | Variable | Effect |
-| ---- |
+| ---- | ---- |
 | `REPLIERS_API_BASE_URL` | Points every tool at a different Repliers deployment (default `https://api.repliers.io`) |
 | `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `TRELLO_LIST_ID` | Enables the `send-feedback` tool, which files search-quality reports as Trello cards on your own board. Without all three, the tool is hidden and the assistant is never asked to report anything |
 | `FEEDBACK_DRY_RUN` | `true` enables `send-feedback` without Trello keys; reports are written to the server's log instead of posted |
@@ -294,7 +295,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Listings
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `Search_Listings` | Natural-language search of active, sold or leased listings via Repliers NLP — the entry point for every new search. Requires NLP to be enabled (Step 2). Responses lead with `appliedFilters`, the ground truth of what was searched |
 | `refine-search` | Surgically corrects a previous `Search_Listings` result when a constraint was dropped or substituted, re-running it with only the named parameters changed. Never starts a search from scratch |
 | `get-listing` | Fetch detailed information for a specific listing by MLS number |
@@ -306,7 +307,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Locations & Buildings
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `search-locations` | Search geographic locations supported by the Repliers API |
 | `autocomplete-location-search` | Autocomplete location queries for search inputs |
 | `search-buildings` | Search building-level data for condos, apartments, and complexes |
@@ -314,7 +315,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Agents, Members & Brokerages
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `search-agents` | Search for agents |
 | `get-agent` | Retrieve details for a specific agent |
 | `create-agent` | Create a new agent record |
@@ -326,7 +327,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Clients
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `search-clients` | Search for clients |
 | `get-client` | Retrieve details for a specific client |
 | `create-client` | Create a new client record |
@@ -335,7 +336,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Saved Searches
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `list-saved-searches` | List all saved searches |
 | `get-saved-search` | Retrieve a specific saved search |
 | `create-saved-search` | Create a new saved search |
@@ -347,13 +348,13 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Favorites
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `list-favorites` | List favorited listings |
 | `remove-favorite` | Remove a listing from favorites |
 
 ### Estimates
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `list-estimates` | List property estimates |
 | `create-estimate` | Create a new property estimate |
 | `update-estimate` | Update an existing estimate |
@@ -361,7 +362,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Messaging & NLP
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `list-messages` | List messages |
 | `get-message` | Retrieve a specific message |
 | `send-message` | Send a message |
@@ -370,7 +371,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 
 ### Feedback
 | Tool | Description |
-| ---- |
+| ---- | ---- |
 | `send-feedback` | Report a search-quality or API problem to the Repliers team (an NLP misparse, an API error, wrong or empty results). Available on the hosted server; on a self-hosted server only when Trello keys are configured |
 
 Every tool is annotated as read-only or mutating, so clients that hide write operations (for example read-only ChatGPT connectors) filter the list automatically.
@@ -401,7 +402,7 @@ Your MCP client is probably not on the [supported clients list](#supported-mcp-c
 **I'm being asked to sign in on every connection**
 Ensure you're completing the Repliers sign-in flow fully. If the issue persists, remove and re-add the connector, or unlink and re-link your API key in the Developer Portal.
 
-**`Search_Listings` fails but other tools work**
+**`Search_Listings`** **fails but other tools work**
 NLP is not enabled on the linked API key. Follow Step 2.
 
 **ChatGPT shows no option to add a plugin, or the connection fails partway (desktop app)**
@@ -413,7 +414,7 @@ An earlier Repliers plugin is still installed alongside the new one. In ChatGPT 
 **ChatGPT will not accept the plugin name**
 A plugin with that name already exists under **Plugins → Personal → Created by me** — uninstalled plugins stay listed there and keep their name. Try **… → Manage → Delete** on the old plugin; if it is still listed afterwards (this does not always work), choose a different name, for example **Repliers New**. The name is only a label.
 
-**`npm install` refuses to run (self-hosted)**
+**`npm install`** **refuses to run (self-hosted)**
 Your Node.js version does not match `.nvmrc`. Install the pinned version (or run `nvm use` / `fnm use`) and try again.
 
 **Claude Desktop falls back to an old Node version**
