@@ -11,11 +11,11 @@ const executeFunction = async (args) => {
   urlPath = urlPath.replace('{mlsNumber}', encodeURIComponent(String(args.mlsNumber)));
   const url = new URL(`${baseUrl}${urlPath}`);
 
-  if (args.boardId !== undefined) url.searchParams.set('boardId', String(args.boardId));
-  if (args.fields !== undefined) url.searchParams.set('fields', String(args.fields));
-  if (args.locations !== undefined) url.searchParams.set('locations', String(args.locations));
-  if (args.locationsSource !== undefined) args.locationsSource.forEach(v => url.searchParams.append('locationsSource', String(v)));
-  if (args.locationsType !== undefined) args.locationsType.forEach(v => url.searchParams.append('locationsType', String(v)));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
+  if (args.fields != null) url.searchParams.set('fields', String(args.fields));
+  if (args.locations != null) url.searchParams.set('locations', String(args.locations));
+  if (args.locationsSource != null) [args.locationsSource].flat().forEach(v => url.searchParams.append('locationsSource', String(v)));
+  if (args.locationsType != null) [args.locationsType].flat().forEach(v => url.searchParams.append('locationsType', String(v)));
 
   const finalUrl = url.toString();
 
@@ -75,13 +75,14 @@ export const apiTool = {
             "items": {
               "type": "string",
               "enum": [
-                "MSL",
+                "MLS",
                 "UserDefined",
-                "LiveBy"
+                "LiveBy",
+                "PublicRecord"
               ],
               "description": "Location data source"
             },
-            "description": "Filters the locations returned by `locations=true` by source:\n- `MSL` - Locations sourced from MLS (Multiple Listing Service) data.\n- `UserDefined` - Custom locations created and defined by users.\n- `LiveBy` - Locations sourced from LiveBy, a third-party neighborhood and community data provider.\n"
+            "description": "Filters the locations returned by `locations=true` by source:\n- `MLS` - Locations sourced from MLS (Multiple Listing Service) data.\n- `UserDefined` - Custom locations created and defined by users.\n- `LiveBy` - Locations sourced from LiveBy, a third-party neighborhood and community data provider.\n- `PublicRecord` - Locations sourced from Public Records Data.\n"
           },
           "locationsType": {
             "type": "array",
@@ -96,7 +97,8 @@ export const apiTool = {
                 "postalCode",
                 "district",
                 "schoolDistrict",
-                "school"
+                "school",
+                "property"
               ],
               "description": "Location type classification"
             },

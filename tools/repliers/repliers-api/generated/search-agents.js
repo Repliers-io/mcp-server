@@ -9,16 +9,16 @@ const executeFunction = async (args) => {
 
   const url = new URL(`${baseUrl}/agents`);
 
-  if (args.agentId !== undefined) url.searchParams.set('agentId', String(args.agentId));
-  if (args.boardId !== undefined) url.searchParams.set('boardId', String(args.boardId));
-  if (args.brokerage !== undefined) url.searchParams.set('brokerage', String(args.brokerage));
-  if (args.designation !== undefined) url.searchParams.set('designation', String(args.designation));
-  if (args.email !== undefined) url.searchParams.set('email', String(args.email));
-  if (args.fname !== undefined) url.searchParams.set('fname', String(args.fname));
-  if (args.lname !== undefined) url.searchParams.set('lname', String(args.lname));
-  if (args.phone !== undefined) url.searchParams.set('phone', String(args.phone));
-  if (args.status !== undefined) url.searchParams.set('status', String(args.status));
-  if (args.externalId !== undefined) url.searchParams.set('externalId', String(args.externalId));
+  if (args.agentId != null) url.searchParams.set('agentId', String(args.agentId));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
+  if (args.brokerage != null) url.searchParams.set('brokerage', String(args.brokerage));
+  if (args.designation != null) url.searchParams.set('designation', String(args.designation));
+  if (args.email != null) url.searchParams.set('email', String(args.email));
+  if (args.fname != null) url.searchParams.set('fname', String(args.fname));
+  if (args.lname != null) url.searchParams.set('lname', String(args.lname));
+  if (args.phone != null) url.searchParams.set('phone', String(args.phone));
+  if (args.status != null) url.searchParams.set('status', String(args.status));
+  if (args.externalId != null) url.searchParams.set('externalId', String(args.externalId));
 
   const finalUrl = url.toString();
 
@@ -84,8 +84,7 @@ export const apiTool = {
             "description": "Filters agents by last name."
           },
           "phone": {
-            "type": "integer",
-            "format": "int32",
+            "type": "string",
             "description": "Filters agents by phone number."
           },
           "status": {

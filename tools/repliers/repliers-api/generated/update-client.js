@@ -19,7 +19,7 @@ const executeFunction = async (args) => {
   if (args.email !== undefined) body.email = args.email;
   if (args.status !== undefined) body.status = args.status;
   if (args.preferences !== undefined) body.preferences = args.preferences;
-  if (args.tags !== undefined) body.tags = args.tags;
+  if (args.tags !== undefined) body.tags = args.tags === null || Array.isArray(args.tags) ? args.tags : [args.tags];
   if (args.externalId !== undefined) body.externalId = args.externalId;
 
   const finalUrl = url.toString();
@@ -64,7 +64,7 @@ export const apiTool = {
           },
           "agentId": {
             "type": "integer",
-            "description": "The agentId of the agent that this client is assigned to. Each client must be assigned to an agent.",
+            "description": "The agentId of the agent that this client is assigned to. Each client must be assigned to an agent. Must be an existing agent in your account, otherwise a 400 error is returned.",
             "format": "int32"
           },
           "fname": {

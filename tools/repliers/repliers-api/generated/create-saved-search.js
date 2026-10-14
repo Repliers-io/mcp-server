@@ -12,18 +12,17 @@ const executeFunction = async (args) => {
   const body = {};
   if (args.clientId !== undefined) body.clientId = args.clientId;
   if (args.name !== undefined) body.name = args.name;
-  if (args.amenities !== undefined) body.amenities = args.amenities;
-  if (args.areas !== undefined) body.areas = args.areas;
-  if (args.basement !== undefined) body.basement = args.basement;
-  if (args.cities !== undefined) body.cities = args.cities;
-  if (args.class !== undefined) body.class = args.class;
-  if (args.heating !== undefined) body.heating = args.heating;
-  if (args.keywords !== undefined) body.keywords = args.keywords;
-  if (args.neighborhoods !== undefined) body.neighborhoods = args.neighborhoods;
+  if (args.amenities !== undefined) body.amenities = args.amenities === null || Array.isArray(args.amenities) ? args.amenities : [args.amenities];
+  if (args.areas !== undefined) body.areas = args.areas === null || Array.isArray(args.areas) ? args.areas : [args.areas];
+  if (args.basement !== undefined) body.basement = args.basement === null || Array.isArray(args.basement) ? args.basement : [args.basement];
+  if (args.cities !== undefined) body.cities = args.cities === null || Array.isArray(args.cities) ? args.cities : [args.cities];
+  if (args.class !== undefined) body.class = args.class === null || Array.isArray(args.class) ? args.class : [args.class];
+  if (args.heating !== undefined) body.heating = args.heating === null || Array.isArray(args.heating) ? args.heating : [args.heating];
+  if (args.keywords !== undefined) body.keywords = args.keywords === null || Array.isArray(args.keywords) ? args.keywords : [args.keywords];
+  if (args.neighborhoods !== undefined) body.neighborhoods = args.neighborhoods === null || Array.isArray(args.neighborhoods) ? args.neighborhoods : [args.neighborhoods];
   if (args.notificationFrequency !== undefined) body.notificationFrequency = args.notificationFrequency;
   if (args.map !== undefined) body.map = args.map;
   if (args.maxBaths !== undefined) body.maxBaths = args.maxBaths;
-  if (args.maxBathroomsHalf !== undefined) body.maxBathroomsHalf = args.maxBathroomsHalf;
   if (args.maxBeds !== undefined) body.maxBeds = args.maxBeds;
   if (args.maxCoveredSpaces !== undefined) body.maxCoveredSpaces = args.maxCoveredSpaces;
   if (args.minParkingSpaces !== undefined) body.minParkingSpaces = args.minParkingSpaces;
@@ -32,7 +31,6 @@ const executeFunction = async (args) => {
   if (args.maxSqft !== undefined) body.maxSqft = args.maxSqft;
   if (args.maxYearBuilt !== undefined) body.maxYearBuilt = args.maxYearBuilt;
   if (args.minBaths !== undefined) body.minBaths = args.minBaths;
-  if (args.minBathroomsHalf !== undefined) body.minBathroomsHalf = args.minBathroomsHalf;
   if (args.minBeds !== undefined) body.minBeds = args.minBeds;
   if (args.minCoveredSpaces !== undefined) body.minCoveredSpaces = args.minCoveredSpaces;
   if (args.minGarageSpaces !== undefined) body.minGarageSpaces = args.minGarageSpaces;
@@ -42,23 +40,28 @@ const executeFunction = async (args) => {
   if (args.minStories !== undefined) body.minStories = args.minStories;
   if (args.minSqft !== undefined) body.minSqft = args.minSqft;
   if (args.minYearBuilt !== undefined) body.minYearBuilt = args.minYearBuilt;
-  if (args.pets !== undefined) body.pets = args.pets;
+  if (args.pets !== undefined) body.pets = args.pets === null || Array.isArray(args.pets) ? args.pets : [args.pets];
   if (args.priceChangeNotifications !== undefined) body.priceChangeNotifications = args.priceChangeNotifications;
-  if (args.propertyTypes !== undefined) body.propertyTypes = args.propertyTypes;
-  if (args.sewer !== undefined) body.sewer = args.sewer;
+  if (args.propertyTypes !== undefined) body.propertyTypes = args.propertyTypes === null || Array.isArray(args.propertyTypes) ? args.propertyTypes : [args.propertyTypes];
+  if (args.sewer !== undefined) body.sewer = args.sewer === null || Array.isArray(args.sewer) ? args.sewer : [args.sewer];
   if (args.status !== undefined) body.status = args.status;
   if (args.soldNotifications !== undefined) body.soldNotifications = args.soldNotifications;
-  if (args.streetNames !== undefined) body.streetNames = args.streetNames;
-  if (args.streetNumbers !== undefined) body.streetNumbers = args.streetNumbers;
-  if (args.styles !== undefined) body.styles = args.styles;
-  if (args.swimmingPool !== undefined) body.swimmingPool = args.swimmingPool;
+  if (args.streetNames !== undefined) body.streetNames = args.streetNames === null || Array.isArray(args.streetNames) ? args.streetNames : [args.streetNames];
+  if (args.streetNumbers !== undefined) body.streetNumbers = args.streetNumbers === null || Array.isArray(args.streetNumbers) ? args.streetNumbers : [args.streetNumbers];
+  if (args.styles !== undefined) body.styles = args.styles === null || Array.isArray(args.styles) ? args.styles : [args.styles];
+  if (args.swimmingPool !== undefined) body.swimmingPool = args.swimmingPool === null || Array.isArray(args.swimmingPool) ? args.swimmingPool : [args.swimmingPool];
   if (args.type !== undefined) body.type = args.type;
-  if (args.waterSource !== undefined) body.waterSource = args.waterSource;
+  if (args.waterSource !== undefined) body.waterSource = args.waterSource === null || Array.isArray(args.waterSource) ? args.waterSource : [args.waterSource];
   if (args.minLotSizeSqft !== undefined) body.minLotSizeSqft = args.minLotSizeSqft;
   if (args.maxLotSizeSqft !== undefined) body.maxLotSizeSqft = args.maxLotSizeSqft;
+  if (args.minLotWidth !== undefined) body.minLotWidth = args.minLotWidth;
+  if (args.maxLotWidth !== undefined) body.maxLotWidth = args.maxLotWidth;
   if (args.minOpenHouseDate !== undefined) body.minOpenHouseDate = args.minOpenHouseDate;
   if (args.maxOpenHouseDate !== undefined) body.maxOpenHouseDate = args.maxOpenHouseDate;
-  if (args.standardStatus !== undefined) body.standardStatus = args.standardStatus;
+  if (args.standardStatus !== undefined) body.standardStatus = args.standardStatus === null || Array.isArray(args.standardStatus) ? args.standardStatus : [args.standardStatus];
+  if (args.fields !== undefined) body.fields = args.fields;
+  if (args.locationIds !== undefined) body.locationIds = args.locationIds === null || Array.isArray(args.locationIds) ? args.locationIds : [args.locationIds];
+  if (args.agentId !== undefined) body.agentId = args.agentId;
 
   const finalUrl = url.toString();
 
@@ -102,7 +105,8 @@ export const apiTool = {
           },
           "name": {
             "type": "string",
-            "description": "You can specify a name for the saved search. This is useful in cases where users have multiple saved searches, to help them distinguish between saved searches."
+            "maxLength": 50,
+            "description": "You can specify a name for the saved search. This is useful in cases where users have multiple saved searches, to help them distinguish between saved searches. Maximum 50 characters."
           },
           "amenities": {
             "type": "array",
@@ -113,7 +117,7 @@ export const apiTool = {
           },
           "areas": {
             "type": "array",
-            "description": "An array of areas to be used as a filter for this search. Required if a value for map is not provided.",
+            "description": "An array of areas to be used as a filter for this search. Required, together with cities, if neither map nor locationIds is provided.",
             "items": {
               "type": "string"
             }
@@ -127,7 +131,7 @@ export const apiTool = {
           },
           "cities": {
             "type": "array",
-            "description": "An array of cities to be used as a filter for this search. Required if a value for map is not provided.",
+            "description": "An array of cities to be used as a filter for this search. Required, together with areas, if neither map nor locationIds is provided.",
             "items": {
               "type": "string"
             }
@@ -136,7 +140,12 @@ export const apiTool = {
             "type": "array",
             "description": "Indicates what class of property to search for.<br/><br/>Allowed values:<br/><br/><code>residential</code>,<code>condo</code>,<code>commercial</code>",
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "residential",
+                "condo",
+                "commercial"
+              ]
             }
           },
           "heating": {
@@ -155,7 +164,7 @@ export const apiTool = {
           },
           "neighborhoods": {
             "type": "array",
-            "description": "An array of neighborhoods to be used as a filter for this search. Required if a value for map is not provided.",
+            "description": "An array of neighborhoods to be used as a filter for this search. Optional. Does not replace the areas and cities requirement when map is not provided.",
             "items": {
               "type": "string"
             }
@@ -163,11 +172,17 @@ export const apiTool = {
           "notificationFrequency": {
             "type": "string",
             "description": "Sets the frequency that clients will be notified of listings that match their search criteria.<br/><br/>Allowed values:<br/><br/><code>instant</code>, <code>daily</code>, <code>weekly</code>, <code>monthly</code>",
+            "enum": [
+              "instant",
+              "daily",
+              "weekly",
+              "monthly"
+            ],
             "default": "instant"
           },
           "map": {
             "type": "string",
-            "description": "An array of polygons arrays with arrays of longitude/latitude shapes to be used as a filter for this search. If used, only listings that area geographically located within these shapes will be matched. Required if values for areas, cities and neighborhoods are not provided.",
+            "description": "An array of polygons arrays with arrays of longitude/latitude shapes to be used as a filter for this search. If used, only listings that area geographically located within these shapes will be matched. Required if neither locationIds nor both areas and cities are provided.",
             "format": "json"
           },
           "maxBaths": {
@@ -175,15 +190,12 @@ export const apiTool = {
             "description": "The maximum amount of bathrooms to be used as a filter for this search.",
             "format": "int32"
           },
-          "maxBathroomsHalf": {
-            "type": "integer",
-            "description": "The maximum amount of half bathrooms to be used as a filter for this search.",
-            "format": "int32"
-          },
           "maxBeds": {
             "type": "integer",
             "description": "The maximum amount of bedrooms to be used as a filter for this search.",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 32767
           },
           "maxCoveredSpaces": {
             "type": "integer",
@@ -193,7 +205,9 @@ export const apiTool = {
           "minParkingSpaces": {
             "type": "integer",
             "description": "If specified, matches only listings whose parking space count is >= the supplied value.",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 32767
           },
           "maxPrice": {
             "type": "integer",
@@ -213,6 +227,8 @@ export const apiTool = {
           "maxYearBuilt": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
+            "maximum": 32767,
             "description": ""
           },
           "minBaths": {
@@ -220,15 +236,12 @@ export const apiTool = {
             "description": "The minimum amount of bathrooms to be used as a filter for this search.",
             "format": "int32"
           },
-          "minBathroomsHalf": {
-            "type": "integer",
-            "description": "The minimum amount of half bathrooms to be used as a filter for this search.",
-            "format": "int32"
-          },
           "minBeds": {
             "type": "integer",
             "description": "The minimum amount of bedrooms to be used as a filter for this search.",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 32767
           },
           "minCoveredSpaces": {
             "type": "integer",
@@ -238,12 +251,16 @@ export const apiTool = {
           "minGarageSpaces": {
             "type": "integer",
             "description": "If specified, matches only listings whose garage space count is >= the supplied value.",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 32767
           },
           "minKitchens": {
             "type": "integer",
             "description": "If specified, matches only listings whose kitchen count is >= the supplied value.",
-            "format": "int32"
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 32767
           },
           "maxMaintenanceFee": {
             "type": "integer",
@@ -268,11 +285,16 @@ export const apiTool = {
           "minYearBuilt": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
+            "maximum": 32767,
             "description": ""
           },
           "pets": {
-            "type": "string",
-            "description": ""
+            "type": "array",
+            "description": "An array of pet policy values to be used as a filter for this search.",
+            "items": {
+              "type": "string"
+            }
           },
           "priceChangeNotifications": {
             "type": "boolean",
@@ -333,7 +355,11 @@ export const apiTool = {
           },
           "type": {
             "type": "string",
-            "description": "Indicates whether the search is for a property that's for sale or for lease.<br/></br>Allowed values:<br/><br/><code>sale</code>,<code>lease</code>"
+            "description": "Indicates whether the search is for a property that's for sale or for lease.<br/></br>Allowed values:<br/><br/><code>sale</code>,<code>lease</code>",
+            "enum": [
+              "sale",
+              "lease"
+            ]
           },
           "waterSource": {
             "type": "array",
@@ -352,6 +378,16 @@ export const apiTool = {
             "format": "int32",
             "description": "The maximum lot size in square feet to be used as a filter for this search."
           },
+          "minLotWidth": {
+            "type": "number",
+            "format": "float",
+            "description": "The minimum lot width to be used as a filter for this search. If specified, matches only listings whose lot width is >= the supplied value. Must be greater than 0 and cannot be greater than maxLotWidth. The unit of measurement is the same as the one the MLS board provides in its data."
+          },
+          "maxLotWidth": {
+            "type": "number",
+            "format": "float",
+            "description": "The maximum lot width to be used as a filter for this search. If specified, matches only listings whose lot width is <= the supplied value. Must be greater than 0 and cannot be less than minLotWidth. The unit of measurement is the same as the one the MLS board provides in its data."
+          },
           "minOpenHouseDate": {
             "description": "Indicates whether the search is for properties that have an Open House on or after the supplied date. Date format: <code>YYYY-MM-DD</code>",
             "type": "string",
@@ -366,17 +402,46 @@ export const apiTool = {
             "type": "array",
             "description": "Indicates what Standard Status of property to search for. <br/><br/>Allowed values:<br/><br/><code>Active</code>, <code>Active Under Contract</code>, <code>Closed</code>, <code>Expired</code>, <code>Pending</code>, <code>Canceled</code>, <code>Incomplete</code>",
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "Active",
+                "Active Under Contract",
+                "Closed",
+                "Expired",
+                "Pending",
+                "Canceled",
+                "Incomplete"
+              ]
+            }
+          },
+          "fields": {
+            "type": "object",
+            "description": "An object of raw MLS field filters to be used for this search. Each key is a raw field name and each value is an array of possible values for that field. Raw field names must be prefixed with <code>raw.</code>, for example <code>raw.Room13level</code> or <code>raw.PropertyUse</code>. Supports up to 50 fields and up to 50 values per field.<br/><br/>Example: <code>{\"raw.Room13level\": [\"Main\"]}</code>",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
-            "enum": [
-              "Active",
-              "Active Under Contract",
-              "Closed",
-              "Expired",
-              "Pending",
-              "Canceled",
-              "Incomplete"
-            ]
+            "example": {
+              "raw.Room13level": [
+                "Main"
+              ]
+            }
+          },
+          "locationIds": {
+            "type": "array",
+            "description": "An array of locationIds (see GET /locations) to be used as a filter for this search. If provided, map, areas and cities are not required. Values must be alphanumeric. Duplicates are removed.",
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9]+$"
+            }
+          },
+          "agentId": {
+            "type": "integer",
+            "description": "The agentId of the agent that the search is assigned to. Must be an agent in your account that the client is assigned to. If not specified, defaults to the agent assigned to the client.",
+            "format": "int32"
           }
         },
         required: ["clientId","class","maxPrice","minPrice","type"],

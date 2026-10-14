@@ -11,15 +11,16 @@ const executeFunction = async (args) => {
   urlPath = urlPath.replace('{searchId}', encodeURIComponent(String(args.searchId)));
   const url = new URL(`${baseUrl}${urlPath}`);
 
-  if (args.pageNum !== undefined) url.searchParams.set('pageNum', String(args.pageNum));
-  if (args.resultsPerPage !== undefined) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
-  if (args.endDate !== undefined) url.searchParams.set('endDate', String(args.endDate));
-  if (args.startDate !== undefined) url.searchParams.set('startDate', String(args.startDate));
-  if (args.lastStatus !== undefined) url.searchParams.set('lastStatus', String(args.lastStatus));
-  if (args.liked !== undefined) url.searchParams.set('liked', String(args.liked));
-  if (args.matchId !== undefined) url.searchParams.set('matchId', String(args.matchId));
-  if (args.sortBy !== undefined) url.searchParams.set('sortBy', String(args.sortBy));
-  if (args.status !== undefined) url.searchParams.set('status', String(args.status));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.endDate != null) url.searchParams.set('endDate', String(args.endDate));
+  if (args.startDate != null) url.searchParams.set('startDate', String(args.startDate));
+  if (args.lastStatus != null) [args.lastStatus].flat().forEach(v => url.searchParams.append('lastStatus', String(v)));
+  if (args.liked != null) url.searchParams.set('liked', String(args.liked));
+  if (args.viewed != null) url.searchParams.set('viewed', String(args.viewed));
+  if (args.matchId != null) url.searchParams.set('matchId', String(args.matchId));
+  if (args.sortBy != null) url.searchParams.set('sortBy', String(args.sortBy));
+  if (args.status != null) url.searchParams.set('status', String(args.status));
 
   const finalUrl = url.toString();
 
@@ -68,26 +69,54 @@ export const apiTool = {
           "resultsPerPage": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
+            "maximum": 100,
             "default": 100,
             "description": "The number of listings to return per page."
           },
           "endDate": {
             "type": "string",
-            "format": "date",
-            "description": "If specified filters matches whose match date is <= the supplied value."
+            "format": "date-time",
+            "example": "2024-06-15T23:59:59.000Z",
+            "description": "If specified filters matches whose match date is <= the supplied value. Format: <code>YYYY-MM-DDTHH:mm:ss.sssZ</code>"
           },
           "startDate": {
             "type": "string",
-            "format": "date",
-            "description": "If specified filters matches whose match date is >= the supplied value."
+            "format": "date-time",
+            "example": "2024-06-15T00:00:00.000Z",
+            "description": "If specified filters matches whose match date is >= the supplied value. Format: <code>YYYY-MM-DDTHH:mm:ss.sssZ</code>"
           },
           "lastStatus": {
-            "type": "string",
-            "description": "If specified filters matches whose last status is the supplied value.<br/><br/>Allowed values:<br/><br/><code>Sus</code>, <code>Exp</code>, <code>Sld</code>, <code>Ter</code>, <code>Dft</code>, <code>Lsd</code>, <code>Sc</code>, <code>Lc</code>, <code>Pc</code>, <code>Ext</code>, <code>New</code>"
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "Sus",
+                "Exp",
+                "Sld",
+                "Ter",
+                "Dft",
+                "Lsd",
+                "Sc",
+                "Lc",
+                "Pc",
+                "Ext",
+                "New",
+                "Sce",
+                "Cs",
+                "Lce",
+                "Inc"
+              ]
+            },
+            "description": "If specified filters matches whose last status is one of the supplied values. Repeat the parameter to supply multiple values.<br/><br/>Allowed values:<br/><br/><code>Sus</code>, <code>Exp</code>, <code>Sld</code>, <code>Ter</code>, <code>Dft</code>, <code>Lsd</code>, <code>Sc</code>, <code>Lc</code>, <code>Pc</code>, <code>Ext</code>, <code>New</code>, <code>Sce</code>, <code>Cs</code>, <code>Lce</code>, <code>Inc</code>"
           },
           "liked": {
             "type": "boolean",
             "description": "If true filters search matches that were liked, if false filters search matches that were disliked. If not specified, returns all search matches."
+          },
+          "viewed": {
+            "type": "boolean",
+            "description": "If true filters search matches that the client has viewed, if false filters search matches that have not been viewed. If not specified, returns all search matches."
           },
           "matchId": {
             "type": "integer",
@@ -96,8 +125,12 @@ export const apiTool = {
           },
           "sortBy": {
             "type": "string",
-            "default": "updatedOnDesc",
-            "description": "Allowed values:<br/><br/><code>updatedOnDesc</code>,<code>createdOnDesc</code>"
+            "enum": [
+              "createdOnDesc",
+              "updatedOnDesc"
+            ],
+            "default": "createdOnDesc",
+            "description": "Sorts the matches by creation or last update date, newest first.<br/><br/>Allowed values:<br/><br/><code>createdOnDesc</code>,<code>updatedOnDesc</code>"
           },
           "status": {
             "type": "string",

@@ -9,21 +9,21 @@ const executeFunction = async (args) => {
 
   const url = new URL(`${baseUrl}/clients`);
 
-  if (args.agentId !== undefined) url.searchParams.set('agentId', String(args.agentId));
-  if (args.clientId !== undefined) url.searchParams.set('clientId', String(args.clientId));
-  if (args.email !== undefined) url.searchParams.set('email', String(args.email));
-  if (args.fname !== undefined) url.searchParams.set('fname', String(args.fname));
-  if (args.keywords !== undefined) url.searchParams.set('keywords', String(args.keywords));
-  if (args.lname !== undefined) url.searchParams.set('lname', String(args.lname));
-  if (args.phone !== undefined) url.searchParams.set('phone', String(args.phone));
-  if (args.status !== undefined) url.searchParams.set('status', String(args.status));
-  if (args.condition !== undefined) url.searchParams.set('condition', String(args.condition));
-  if (args.operator !== undefined) url.searchParams.set('operator', String(args.operator));
-  if (args.pageNum !== undefined) url.searchParams.set('pageNum', String(args.pageNum));
-  if (args.resultsPerPage !== undefined) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
-  if (args.tags !== undefined) url.searchParams.set('tags', String(args.tags));
-  if (args.showSavedSearches !== undefined) url.searchParams.set('showSavedSearches', String(args.showSavedSearches));
-  if (args.externalId !== undefined) url.searchParams.set('externalId', String(args.externalId));
+  if (args.agentId != null) url.searchParams.set('agentId', String(args.agentId));
+  if (args.clientId != null) url.searchParams.set('clientId', String(args.clientId));
+  if (args.email != null) url.searchParams.set('email', String(args.email));
+  if (args.fname != null) url.searchParams.set('fname', String(args.fname));
+  if (args.keywords != null) url.searchParams.set('keywords', String(args.keywords));
+  if (args.lname != null) url.searchParams.set('lname', String(args.lname));
+  if (args.phone != null) url.searchParams.set('phone', String(args.phone));
+  if (args.status != null) url.searchParams.set('status', String(args.status));
+  if (args.condition != null) url.searchParams.set('condition', String(args.condition));
+  if (args.operator != null) url.searchParams.set('operator', String(args.operator));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.tags != null) url.searchParams.set('tags', String(args.tags));
+  if (args.showSavedSearches != null) url.searchParams.set('showSavedSearches', String(args.showSavedSearches));
+  if (args.externalId != null) url.searchParams.set('externalId', String(args.externalId));
 
   const finalUrl = url.toString();
 
@@ -61,11 +61,13 @@ export const apiTool = {
           "agentId": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
             "description": "Filters clients by the ID of their assigned agent."
           },
           "clientId": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
             "description": "Filters clients by their unique ID."
           },
           "email": {
@@ -85,8 +87,7 @@ export const apiTool = {
             "description": "Filters clients by last name."
           },
           "phone": {
-            "type": "integer",
-            "format": "int32",
+            "type": "string",
             "description": "Filters clients by phone number."
           },
           "status": {
@@ -95,23 +96,33 @@ export const apiTool = {
           },
           "condition": {
             "type": "string",
+            "enum": [
+              "EXACT",
+              "CONTAINS"
+            ],
             "default": "EXACT",
-            "description": "Determines the search condition applied to the filters. If EXACT, requires that the given value for one or more params is an exact match of the stored value. If CONTAINS, requires that the given value for one or more params is contained within the stored value. <br/><br/> Allowed values: <br/><br/> <code>EXACT</code>, <code>CONTAINS</code>"
+            "description": "Determines the search condition applied to the filters. If EXACT, requires that the given value for one or more params is an exact match of the stored value. If CONTAINS, requires that the given value for one or more params is contained within the stored value. Values are case-insensitive. <br/><br/> Allowed values: <br/><br/> <code>EXACT</code>, <code>CONTAINS</code>"
           },
           "operator": {
             "type": "string",
+            "enum": [
+              "OR",
+              "AND"
+            ],
             "default": "OR",
-            "description": "Determines the search logic applied to the filters. If OR, requires that one or more params contain/equal the given value. If AND, requires that all params contain/equal the given value. <br/><br/> Allowed values: <br/><br/> <code>OR</code>, <code>AND</code>"
+            "description": "Determines the search logic applied to the filters. If OR, requires that one or more params contain/equal the given value. If AND, requires that all params contain/equal the given value. Values are case-insensitive. <br/><br/> Allowed values: <br/><br/> <code>OR</code>, <code>AND</code>"
           },
           "pageNum": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
             "default": 1,
             "description": "The page number to return. For example, with 100 results per page, specifying pageNum=2 returns results 101–200."
           },
           "resultsPerPage": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
             "default": 100,
             "description": "The number of clients to return per page."
           },

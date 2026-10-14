@@ -9,11 +9,11 @@ const executeFunction = async (args) => {
 
   const url = new URL(`${baseUrl}/nlp/chats`);
 
-  if (args.nlpId !== undefined) url.searchParams.set('nlpId', String(args.nlpId));
-  if (args.clientId !== undefined) url.searchParams.set('clientId', String(args.clientId));
-  if (args.resultsPerPage !== undefined) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
-  if (args.pageNum !== undefined) url.searchParams.set('pageNum', String(args.pageNum));
-  if (args.prompts !== undefined) url.searchParams.set('prompts', String(args.prompts));
+  if (args.nlpId != null) url.searchParams.set('nlpId', String(args.nlpId));
+  if (args.clientId != null) url.searchParams.set('clientId', String(args.clientId));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.prompts != null) url.searchParams.set('prompts', String(args.prompts));
 
   const finalUrl = url.toString();
 
@@ -53,7 +53,7 @@ export const apiTool = {
             "description": "Unique identifier for the NLP session."
           },
           "clientId": {
-            "type": "string",
+            "type": "integer",
             "description": "Filter sessions based on the `clientId` to see all NLP sessions associated with a specific client."
           },
           "resultsPerPage": {

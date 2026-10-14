@@ -17,7 +17,7 @@ const executeFunction = async (args) => {
   if (args.email !== undefined) body.email = args.email;
   if (args.status !== undefined) body.status = args.status;
   if (args.preferences !== undefined) body.preferences = args.preferences;
-  if (args.tags !== undefined) body.tags = args.tags;
+  if (args.tags !== undefined) body.tags = args.tags === null || Array.isArray(args.tags) ? args.tags : [args.tags];
   if (args.externalId !== undefined) body.externalId = args.externalId;
 
   const finalUrl = url.toString();
@@ -57,7 +57,7 @@ export const apiTool = {
         properties: {
           "agentId": {
             "type": "integer",
-            "description": "The agentId of the agent that this client is assigned to. Each client must be assigned to an agent.",
+            "description": "The agentId of the agent that this client is assigned to. Each client must be assigned to an agent. Must be an existing agent in your account, otherwise a 400 error is returned.",
             "format": "int32"
           },
           "fname": {
@@ -70,11 +70,11 @@ export const apiTool = {
           },
           "phone": {
             "type": "string",
-            "description": "The mobile phone number of this client (May be used to deliver text messages). Must be 11 digits in length.<br/><br/>Regex pattern: <code>^(1)([0-9]{10})$</code>"
+            "description": "The mobile phone number of this client (May be used to deliver text messages). Must be 11 digits in length. Required if <code>email</code> is not provided.<br/><br/>Regex pattern: <code>^(1)([0-9]{10})$</code>"
           },
           "email": {
             "type": "string",
-            "description": "The email address of this client (May be used to send emails).<br/><br/>Regex pattern: <code>^(([^<>()\\[\\]\\\\.,;:\\s@\"]+(\\.[^<>()\\[\\]\\\\.,;:\\s@\"]+)*)|(\".+\"))@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))</code>"
+            "description": "The email address of this client (May be used to send emails). Required if <code>phone</code> is not provided.<br/><br/>Regex pattern: <code>^(([^<>()\\[\\]\\\\.,;:\\s@\"]+(\\.[^<>()\\[\\]\\\\.,;:\\s@\"]+)*)|(\".+\"))@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))</code>"
           },
           "status": {
             "type": "boolean",

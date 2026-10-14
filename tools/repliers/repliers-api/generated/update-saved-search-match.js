@@ -67,7 +67,8 @@ export const apiTool = {
           },
           "liked": {
             "type": "boolean",
-            "description": "If true, indicates that the client liked the match. Useful for keeping track of what matches clients like."
+            "nullable": true,
+            "description": "If true, indicates that the client liked the match, if false that they disliked it. Useful for keeping track of what matches clients like. Set to <code>null</code> to clear the liked state."
           }
         },
         required: ["searchId","matchId"],

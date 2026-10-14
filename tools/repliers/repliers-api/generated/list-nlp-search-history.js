@@ -9,8 +9,10 @@ const executeFunction = async (args) => {
 
   const url = new URL(`${baseUrl}/nlp`);
 
-  if (args.nlpId !== undefined) url.searchParams.set('nlpId', String(args.nlpId));
-  if (args.clientId !== undefined) url.searchParams.set('clientId', String(args.clientId));
+  if (args.nlpId != null) url.searchParams.set('nlpId', String(args.nlpId));
+  if (args.clientId != null) url.searchParams.set('clientId', String(args.clientId));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
 
   const finalUrl = url.toString();
 
@@ -50,8 +52,21 @@ export const apiTool = {
             "description": "Unique identifier for the NLP session."
           },
           "clientId": {
-            "type": "string",
+            "type": "integer",
             "description": "Filter sessions based on the `clientId` to see all NLP sessions associated with a specific client."
+          },
+          "pageNum": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "The page number to return. For example, with 100 results per page, specifying pageNum=2 returns results 101–200."
+          },
+          "resultsPerPage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 100,
+            "description": "The number of prompts to return per page."
           }
         },
         required: [],

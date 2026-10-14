@@ -92,21 +92,31 @@ export const apiTool = {
           "location": {
             "properties": {
               "latitude": {
-                "type": "string",
-                "description": "A latitude value representing the location of the agent. Required if a value for longitude is provided."
+                "type": "number",
+                "format": "float",
+                "minimum": -90,
+                "maximum": 90,
+                "description": "A latitude value representing the location of the agent. Required if location is provided."
               },
               "longitude": {
-                "type": "string",
-                "description": "A longitude value representing the location of the agent. Required if a value for latitude is specified."
+                "type": "number",
+                "format": "float",
+                "minimum": -180,
+                "maximum": 180,
+                "description": "A longitude value representing the location of the agent. Required if location is provided."
               }
             },
-            "required": [],
+            "required": [
+              "latitude",
+              "longitude"
+            ],
             "type": "object",
             "description": ""
           },
           "externalId": {
             "type": "string",
-            "description": "The externalId is intended for storing agent identifiers from external systems (such as CRMs) for reference purposes."
+            "maxLength": 255,
+            "description": "The externalId is intended for storing agent identifiers from external systems (such as CRMs) for reference purposes. Maximum 255 characters."
           }
         },
         required: ["fname","lname","phone","email","brokerage","designation"],

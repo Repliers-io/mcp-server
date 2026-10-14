@@ -20,6 +20,8 @@ const executeFunction = async (args) => {
   if (args.taxes !== undefined) body.taxes = args.taxes;
   if (args.clientId !== undefined) body.clientId = args.clientId;
   if (args.boardId !== undefined) body.boardId = args.boardId;
+  if (args.resource !== undefined) body.resource = args.resource;
+  if (args.listDate !== undefined) body.listDate = args.listDate;
 
   const finalUrl = url.toString();
 
@@ -52,7 +54,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "create-estimate",
-      description: "Create a property value estimate for a client by submitting property attributes. More attributes = more accurate result. Key params: clientId, address (required), details (beds, baths, sqft, etc.), overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly. Operates on the connected account's CRM data.",
+      description: "Create a property value estimate for a client by submitting property attributes. More attributes = more accurate result. Key params: clientId, address (required), details (required: beds, baths, sqft, etc.), overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly. Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {
@@ -132,18 +134,35 @@ export const apiTool = {
                 "format": "int32"
               },
               "propertyType": {
-                "type": "string"
+                "type": "string",
+                "description": "Must be a property type value that exists in your MLS data. For a list of supported values, make a GET /listings?listings=false&aggregates=details.propertyType request."
               },
               "sqft": {
                 "type": "integer",
-                "format": "int32"
+                "format": "int32",
+                "description": "The square footage of the property. Must be numeric."
               },
               "style": {
-                "type": "string"
+                "type": "string",
+                "description": "Must be a style value that exists in your MLS data. For a list of supported values, make a GET /listings?listings=false&aggregates=details.style request."
               },
               "yearBuilt": {
                 "type": "integer",
-                "format": "int32"
+                "format": "int32",
+                "description": "Must be a valid year, or a year-built value that exists in your MLS data."
+              },
+              "numFireplaces": {
+                "type": "integer",
+                "nullable": true,
+                "minimum": 0,
+                "description": "The number of fireplaces. The strings \"y\" and \"n\" are also accepted and mapped to 1 and 0."
+              },
+              "extras": {
+                "type": "array",
+                "description": "Additional property features. Accepts an array of strings or a single string.",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
@@ -197,16 +216,26 @@ export const apiTool = {
           },
           "clientId": {
             "type": "integer",
-            "description": "Set this to the clientId that the estimate is for if you wish to store the estimate. If sendEmailNow or sendEmailMonthly is used, messages containing estimates will be sent to this clientId.",
+            "description": "Set this to the clientId that the estimate is for if you wish to store the estimate. If sendEmailNow or sendEmailMonthly is used, messages containing estimates will be sent to this clientId. <strong>Required when sendEmailNow or sendEmailMonthly is true.</strong>",
             "format": "int32"
           },
           "boardId": {
             "type": "integer",
-            "description": "Required when using an API key that has access to multiple boards.",
+            "description": "Required when using an API key that has access to multiple boards, unless <code>resource</code> is supplied. A boardId that your API key does not have access to is rejected with a 400 error.",
             "format": "int32"
+          },
+          "resource": {
+            "type": "string",
+            "description": "The MLS resource identifier of the board, as an alternative to <code>boardId</code>. Must be a resource that your API key has access to."
+          },
+          "listDate": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date the property was listed, if known. Format: <code>YYYY-MM-DDTHH:mm:ss.sssZ</code>",
+            "example": "2024-06-15T00:00:00.000Z"
           }
         },
-        required: [],
+        required: ["address","details"],
       },
     },
   },

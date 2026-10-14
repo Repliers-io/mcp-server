@@ -9,15 +9,17 @@ const executeFunction = async (args) => {
 
   const url = new URL(`${baseUrl}/members`);
 
-  if (args.agentId !== undefined) url.searchParams.set('agentId', String(args.agentId));
-  if (args.agentName !== undefined) url.searchParams.set('agentName', String(args.agentName));
-  if (args.boardId !== undefined) url.searchParams.set('boardId', String(args.boardId));
-  if (args.brokerage !== undefined) url.searchParams.set('brokerage', String(args.brokerage));
-  if (args.keywords !== undefined) url.searchParams.set('keywords', String(args.keywords));
-  if (args.officeId !== undefined) url.searchParams.set('officeId', String(args.officeId));
-  if (args.pageNum !== undefined) url.searchParams.set('pageNum', String(args.pageNum));
-  if (args.position !== undefined) url.searchParams.set('position', String(args.position));
-  if (args.resultsPerPage !== undefined) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.agentId != null) [args.agentId].flat().forEach(v => url.searchParams.append('agentId', String(v)));
+  if (args.agentName != null) [args.agentName].flat().forEach(v => url.searchParams.append('agentName', String(v)));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
+  if (args.hasEmail != null) url.searchParams.set('hasEmail', String(args.hasEmail));
+  if (args.originatingSystemName != null) url.searchParams.set('originatingSystemName', String(args.originatingSystemName));
+  if (args.brokerage != null) [args.brokerage].flat().forEach(v => url.searchParams.append('brokerage', String(v)));
+  if (args.officeId != null) [args.officeId].flat().forEach(v => url.searchParams.append('officeId', String(v)));
+  if (args.position != null) [args.position].flat().forEach(v => url.searchParams.append('position', String(v)));
+  if (args.keywords != null) url.searchParams.set('keywords', String(args.keywords));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
 
   const finalUrl = url.toString();
 
@@ -53,44 +55,75 @@ export const apiTool = {
         type: 'object',
         properties: {
           "agentId": {
-            "type": "string",
-            "description": "Filters members by agent ID using exact match."
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "description": "Filters members by agent ID using exact match. Repeat the parameter to supply multiple values (OR)."
           },
           "agentName": {
-            "type": "string",
-            "description": "Filters members by agent name using exact match."
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Filters members by agent name using exact match. Repeat the parameter to supply multiple values (OR)."
           },
           "boardId": {
             "type": "string",
-            "description": "Filters members by the MLS board they belong to."
+            "description": "Filters members by the MLS board they belong to. Required if your API key has access to more than one MLS board. Find your boardId by visiting https://login.repliers.com/dashboard/data-access"
+          },
+          "hasEmail": {
+            "type": "boolean",
+            "description": "If supplied, filters members by whether they have an email address on record."
+          },
+          "originatingSystemName": {
+            "type": "string",
+            "description": "Filters members by the name of the originating MLS system."
           },
           "brokerage": {
-            "type": "string",
-            "description": "Filters members by brokerage name using partial match."
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Filters members by brokerage name using partial match. Repeat the parameter to supply multiple values."
+          },
+          "officeId": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Filters members by the ID of the office they belong to. Repeat the parameter to supply multiple values (OR)."
+          },
+          "position": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Filters members by their position or role. Repeat the parameter to supply multiple values (OR)."
           },
           "keywords": {
             "type": "string",
-            "description": "Searches members by keyword across multiple fields."
-          },
-          "officeId": {
-            "type": "string",
-            "description": "Filters members by office ID."
+            "maxLength": 100,
+            "description": "Searches members by keyword across multiple fields. Maximum 100 characters."
           },
           "pageNum": {
             "type": "integer",
             "format": "int32",
             "default": 1,
+            "minimum": 1,
             "maximum": 10000,
             "description": "The page number to return. For example, with 100 results per page, specifying pageNum=2 returns results 101–200."
-          },
-          "position": {
-            "type": "string",
-            "description": "Filters members by their position or role (e.g., Broker, Sales Representative)."
           },
           "resultsPerPage": {
             "type": "integer",
             "format": "int32",
             "default": 100,
+            "minimum": 1,
             "maximum": 1000,
             "description": "The number of members to return per page."
           }

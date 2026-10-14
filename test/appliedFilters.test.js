@@ -53,6 +53,15 @@ test("live aliases absent from openapi.json are not flagged", () => {
   assert.deepEqual(f.other, { waterfront: "true" });
 });
 
+// Real /nlp output (2026-10-14) for "condos in Toronto that allow pets with a virtual tour". Against
+// the May spec both params were flagged, telling the agent a correctly parsed constraint was dropped.
+test("parameters /listings gained in the 2026-10-08 spec are not flagged as discarded", () => {
+  const f = parseAppliedFilters(
+    "https://api.repliers.io/listings?class=condo&pets=yes-with%20restrictions&hasVirtualTour=true&city=Toronto"
+  );
+  assert.deepEqual(f.unrecognized, []);
+});
+
 test("unrecognized is always an array, so agents can rely on the key", () => {
   assert.deepEqual(parseAppliedFilters("https://api.repliers.io/listings?city=Toronto").unrecognized, []);
 });

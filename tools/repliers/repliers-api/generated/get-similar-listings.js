@@ -11,11 +11,12 @@ const executeFunction = async (args) => {
   urlPath = urlPath.replace('{mlsNumber}', encodeURIComponent(String(args.mlsNumber)));
   const url = new URL(`${baseUrl}${urlPath}`);
 
-  if (args.boardId !== undefined) args.boardId.forEach(v => url.searchParams.append('boardId', String(v)));
-  if (args.fields !== undefined) url.searchParams.set('fields', String(args.fields));
-  if (args.listPriceRange !== undefined) url.searchParams.set('listPriceRange', String(args.listPriceRange));
-  if (args.radius !== undefined) url.searchParams.set('radius', String(args.radius));
-  if (args.sortBy !== undefined) url.searchParams.set('sortBy', String(args.sortBy));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
+  if (args.fields != null) url.searchParams.set('fields', String(args.fields));
+  if (args.listPriceRange != null) url.searchParams.set('listPriceRange', String(args.listPriceRange));
+  if (args.radius != null) url.searchParams.set('radius', String(args.radius));
+  if (args.radiusUnit != null) url.searchParams.set('radiusUnit', String(args.radiusUnit));
+  if (args.sortBy != null) url.searchParams.set('sortBy', String(args.sortBy));
 
   const finalUrl = url.toString();
 
@@ -55,12 +56,9 @@ export const apiTool = {
             "description": "The MLS number of the listing you wish to retrieve similar listings for."
           },
           "boardId": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "description": "Filter by boardId. This is only required if your account has access to more than one MLS. You may specify one or more board IDs to filter by, if not specified, returns all boards that that account has access to by default. <a target=\"_blank\" href=\"https://help.repliers.com/en/article/understanding-and-using-boardids-in-the-repliers-api-lfywn2/#2-using-boardids-in-api-requests\">More info</a>."
+            "type": "integer",
+            "format": "int32",
+            "description": "Filter by boardId. This is only required if your account has access to more than one MLS. <a target=\"_blank\" href=\"https://help.repliers.com/en/article/understanding-and-using-boardids-in-the-repliers-api-lfywn2/#2-using-boardids-in-api-requests\">More info</a>."
           },
           "fields": {
             "type": "string",
@@ -74,7 +72,18 @@ export const apiTool = {
           "radius": {
             "type": "integer",
             "format": "int32",
-            "description": "If specified, will show similar listings within the specified radius (km). If not specified, defaults to showing listings in the same neighborhood."
+            "description": "If specified, will show similar listings within the specified radius, expressed in the unit set by radiusUnit (KM by default). If not specified, defaults to showing listings in the same neighborhood."
+          },
+          "radiusUnit": {
+            "type": "string",
+            "enum": [
+              "m",
+              "km",
+              "mi",
+              "yd"
+            ],
+            "default": "km",
+            "description": "Sets the unit of measurement for the `radius` parameter. Can only be used together with `radius`.\n\nAllowed values:\n\n- `km` — kilometers (default)\n- `m` — meters\n- `mi` — miles\n- `yd` — yards"
           },
           "sortBy": {
             "type": "string",

@@ -9,9 +9,11 @@ const executeFunction = async (args) => {
 
   const url = new URL(`${baseUrl}/offices`);
 
-  if (args.officeId !== undefined) url.searchParams.set('officeId', String(args.officeId));
-  if (args.keywords !== undefined) url.searchParams.set('keywords', String(args.keywords));
-  if (args.boardId !== undefined) url.searchParams.set('boardId', String(args.boardId));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.officeId != null) [args.officeId].flat().forEach(v => url.searchParams.append('officeId', String(v)));
+  if (args.keywords != null) url.searchParams.set('keywords', String(args.keywords));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
 
   const finalUrl = url.toString();
 
@@ -46,9 +48,25 @@ export const apiTool = {
       parameters: {
         type: 'object',
         properties: {
+          "pageNum": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number for paginated results."
+          },
+          "resultsPerPage": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 100,
+            "description": "Number of results to return per page."
+          },
           "officeId": {
-            "type": "string",
-            "description": "If supplied, finds office by officeId using exact match criteria."
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "description": "If supplied, finds offices by officeId using exact (case-insensitive) match criteria. Repeat the parameter to supply multiple values."
           },
           "keywords": {
             "type": "string",
@@ -56,7 +74,7 @@ export const apiTool = {
           },
           "boardId": {
             "type": "string",
-            "description": "Find your boardId by visiting https://login.repliers.com/dashboard/data-access"
+            "description": "Filters offices by MLS board. Required if your API key has access to more than one MLS board. Find your boardId by visiting https://login.repliers.com/dashboard/data-access"
           }
         },
         required: [],

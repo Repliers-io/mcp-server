@@ -6,7 +6,7 @@ Scripts are in `package.json`. `npm test` is fully offline — `fetch` is mocked
 
 ## Where work is tracked
 
-Each feature has `docs/<feature>/{design,plan,status,test-plan}.md`. **`status.md` is the resume point — read the newest one before starting anything.** Currently: [docs/oauth21/status.md](docs/oauth21/status.md) (OAuth 2.1 resource server; blocked on the PropelAuth dashboard) and [docs/agent-feedback/status.md](docs/agent-feedback/status.md) (shipped; open items listed there). Upstream API defects found by the eval battery: [docs/repliers-defects-2026-08-29.md](docs/repliers-defects-2026-08-29.md).
+Each feature has `docs/<feature>/{design,plan,status,test-plan}.md`. **`status.md` is the resume point — read the newest one before starting anything.** Currently: [docs/feedback-v2/status.md](docs/feedback-v2/status.md) (server-side capture, actionable errors, neutral tool text; spec in review), [docs/oauth21/status.md](docs/oauth21/status.md) (OAuth 2.1 resource server; blocked on the PropelAuth dashboard) and [docs/agent-feedback/status.md](docs/agent-feedback/status.md) (shipped; open items listed there). Upstream API defects found by the eval battery: [docs/repliers-defects-2026-08-29.md](docs/repliers-defects-2026-08-29.md).
 
 Known gap in this server: `Search_Listings` sets no `resultsPerPage`/`fields` on the `/nlp` call and returns the payload verbatim; responses of several MB have exceeded MCP clients' tool-result limits. The 1 MB check in `lib/feedbackHints.js` only appends a nudge, it does not truncate.
 
@@ -15,7 +15,7 @@ Known gap in this server: `Search_Listings` sets no `resultsPerPage`/`fields` on
 | Path | What you need to know |
 | --- | --- |
 | `mcpServer.js` | Both transports, session ownership, bearer-auth + Repliers-key gates on the HTTP path, `_feedback` nudges attached to every tool response, `instructions` from `lib/serverInstructions.js` |
-| `tools/repliers/repliers-api/generated/` | Generated from `openapi.json` by `npm run generate` (`codegen/`, overrides in `codegen/overrides.json`). **Never edit by hand** |
+| `tools/repliers/repliers-api/generated/` | Generated from `openapi.json` by `npm run generate` (`codegen/`, overrides in `codegen/overrides.json`). **Never edit by hand**. `openapi.json` itself comes from `Repliers-io/api-docs` via `npm run sync-spec`, at the commit pinned in `codegen/config.js` → `upstreamSpec`; bump the pin deliberately, then regenerate and diff the roster. It is also read at runtime by `lib/appliedFilters.js`, so a stale spec flags valid parameters as discarded |
 | `tools/repliers/repliers-api/custom/` | Hand-written: `search-listings` (NLP entry point + `appliedFilters` enrichment), `refine-search`, `send-feedback`, `statistics`, `get-parameter-enumerations`, `get-listing-image` |
 | `lib/apiBase.js` | The only place the API host is written. The codegen template emits the call, so regeneration preserves it — never hardcode the host anywhere else |
 | `lib/appliedFilters.js` | Flags params the API discards in `appliedFilters.unrecognized`, checked against `/listings` in `openapi.json` — because `/nlp` reports `unrecognizedParams: []` even when `/listings` rejects the param |

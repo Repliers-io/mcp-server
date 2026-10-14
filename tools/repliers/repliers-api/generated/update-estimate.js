@@ -87,10 +87,7 @@ export const apiTool = {
                 "type": "string"
               }
             },
-            "required": [
-              "streetName",
-              "streetNumber"
-            ],
+            "required": [],
             "type": "object",
             "description": ""
           },
@@ -137,40 +134,7 @@ export const apiTool = {
               },
               "propertyType": {
                 "type": "string",
-                "enum": [
-                  "Att/Row/Twnhouse",
-                  "Co-Op Apt",
-                  "Co-Ownership Apt",
-                  "Comm Element Condo",
-                  "Condo Apt",
-                  "Condo Townhouse",
-                  "Cottage",
-                  "Det Condo",
-                  "Detached",
-                  "Duplex",
-                  "Farm",
-                  "Fourplex",
-                  "Leasehold Condo",
-                  "Link",
-                  "Locker",
-                  "Lower Level",
-                  "Mobile/Trailer",
-                  "Multiplex",
-                  "Other",
-                  "Parking Space",
-                  "Room",
-                  "Rural Resid",
-                  "Semi-Det Condo",
-                  "Semi-Detached",
-                  "Shared Room",
-                  "Store W/Apt/Offc",
-                  "Store W/Apt/Office",
-                  "Time Share",
-                  "Triplex",
-                  "Upper Level",
-                  "Vacant Land",
-                  "Vacant Land Condo"
-                ]
+                "description": "Must be a property type value that exists in your MLS data. For a list of supported values, make a GET /listings?listings=false&aggregates=details.propertyType request."
               },
               "sqft": {
                 "type": "integer",
@@ -229,7 +193,7 @@ export const apiTool = {
           },
           "clientId": {
             "type": "integer",
-            "description": "Set this to the clientId that the estimate is for if you wish to store the estimate. If sendEmailNow or sendEmailMonthly is used, messages containing estimates will be sent to this clientId.",
+            "description": "The clientId of an existing estimate cannot be changed. If supplied, this value is ignored and the estimate keeps its original client.",
             "format": "int32"
           }
         },
