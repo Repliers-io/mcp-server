@@ -145,3 +145,6 @@ dist
 /.claude/settings.local.json
 # Dry-run feedback cards (FEEDBACK_DRY_RUN_LOG)
 feedback-cards.log
+
+docs/
+docs-bak/
