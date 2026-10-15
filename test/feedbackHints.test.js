@@ -1,13 +1,14 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { promptLevel, consentMode, augmentResult } from "../lib/feedbackHints.js";
+import { promptLevel, augmentResult } from "../lib/feedbackHints.js";
 
 const realEnv = {
   TRELLO_API_KEY: process.env.TRELLO_API_KEY,
   TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
   TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
   FEEDBACK_PROMPT_LEVEL: process.env.FEEDBACK_PROMPT_LEVEL,
-  FEEDBACK_CONSENT: process.env.FEEDBACK_CONSENT,
+  FEEDBACK_AUTO_CAPTURE: process.env.FEEDBACK_AUTO_CAPTURE,
+  TRELLO_AUTO_LIST_ID: process.env.TRELLO_AUTO_LIST_ID,
 };
 
 beforeEach(() => {
@@ -15,7 +16,6 @@ beforeEach(() => {
   process.env.TRELLO_API_TOKEN = "t";
   process.env.TRELLO_LIST_ID = "l";
   process.env.FEEDBACK_PROMPT_LEVEL = "high";
-  delete process.env.FEEDBACK_CONSENT;
 });
 
 afterEach(() => {
@@ -67,19 +67,6 @@ test("zero-results fires on top-level count alone", () => {
   assert.ok(result.data._feedback.signals.includes("zero-results"));
 });
 
-test("api-error results get _feedback on the result itself", () => {
-  const result = { error: "boom", details: "x" };
-  augmentResult("search-locations", result);
-  assert.deepEqual(result._feedback.signals, ["api-error"]);
-});
-
-test("error with data object attaches _feedback to data, the part the handler serializes", () => {
-  const result = { error: "boom", data: { count: 5 } };
-  augmentResult("search-locations", result);
-  assert.ok(result.data._feedback.signals.includes("api-error"));
-  assert.equal(result._feedback, undefined);
-});
-
 test("low level: clean non-search result stays untouched", () => {
   process.env.FEEDBACK_PROMPT_LEVEL = "low";
   const result = { data: { count: 5 } };
@@ -125,34 +112,6 @@ test("_feedback serializes FIRST in data — clients truncate huge payloads head
   assert.equal(Object.keys(result.data)[0], "_feedback");
 });
 
-test("refined signal fires on successful refine-search at high and low", () => {
-  const result = { data: { count: 28 } };
-  augmentResult("refine-search", result);
-  assert.ok(result.data._feedback.signals.includes("refined"));
-  assert.match(result.data._feedback.note, /nlp-misparse/);
-  process.env.FEEDBACK_PROMPT_LEVEL = "low";
-  const low = { data: { count: 28 } };
-  augmentResult("refine-search", low);
-  assert.deepEqual(low.data._feedback.signals, ["refined"]);
-});
-
-test("refined signal suppressed on presentation-only refines (constraintPatch: false)", () => {
-  const result = { constraintPatch: false, data: { count: 28 } };
-  augmentResult("refine-search", result);
-  assert.ok(!result.data._feedback.signals.includes("refined"));
-});
-
-test("refined signal absent on Search_Listings and on refine-search errors", () => {
-  const search = {
-    data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 2 } },
-  };
-  augmentResult("Search_Listings", search);
-  assert.ok(!search.data._feedback.signals.includes("refined"));
-  const err = { error: "boom" };
-  augmentResult("refine-search", err);
-  assert.ok(!err._feedback.signals.includes("refined"));
-});
-
 test("no-location-filter: suppressed for union (complexQuery) searches with body.queries", () => {
   const result = {
     data: {
@@ -172,37 +131,88 @@ test("no-location-filter: suppressed for union (complexQuery) searches with body
   }
 });
 
-test("consentMode defaults to auto and rejects unknown values", () => {
-  assert.equal(consentMode(), "auto");
-  process.env.FEEDBACK_CONSENT = "banana";
-  assert.equal(consentMode(), "auto");
-  process.env.FEEDBACK_CONSENT = "always-ask";
-  assert.equal(consentMode(), "always-ask");
+test("errors get no _feedback: they carry a _notice from the call path instead", () => {
+  const result = { error: "boom", status: 500, data: { count: 5 } };
+  augmentResult("Search_Listings", result);
+  assert.equal(result._feedback, undefined);
+  assert.equal(result.data._feedback, undefined);
 });
 
-test("auto mode: api-error note tells the agent to report without asking", () => {
-  const result = { error: "boom" };
-  augmentResult("search-locations", result);
-  assert.match(result._feedback.note, /no need to ask/i);
+const refineResult = (changed, constraintPatch = true) => ({
+  constraintPatch, changed, data: { count: 28, request: { url: "https://api.repliers.io/listings?city=X" } },
 });
 
-test("always-ask mode: every note requires consent before sending", () => {
-  process.env.FEEDBACK_CONSENT = "always-ask";
+test("a constraint-changing refine-search gets a refined note naming what it changed", () => {
+  const result = refineResult({ set: { type: "sale", city: "Cooksville", pageNum: 2 }, remove: ["class", "sortBy"] });
+  augmentResult("refine-search", result);
+  const { signals, note } = result.data._feedback;
+  assert.ok(signals.includes("refined"));
+  assert.match(note, /changed type, city, class \(removed\), which the original parse missed or mis-mapped/);
+  assert.match(note, /send-feedback \(category nlp-misparse, missedConstraints\) can report it to the Repliers team if the user agrees/);
+  assert.doesNotMatch(note, /pageNum|sortBy/, "presentation params are not parse gaps");
+  assert.equal(Object.keys(result.data)[0], "_feedback");
+});
 
-  const err = { error: "boom" };
-  augmentResult("search-locations", err);
-  assert.match(err._feedback.note, /only after they agree|only if they agree/i);
-  assert.doesNotMatch(err._feedback.note, /no need to ask/i);
-
-  const refined = { constraintPatch: true, data: { count: 28 } };
+test("full capture mode: no refined offer (the server records the correction), zero-results keeps repairsNlpId", () => {
+  process.env.FEEDBACK_AUTO_CAPTURE = "full";
+  process.env.TRELLO_AUTO_LIST_ID = "a";
+  const refined = refineResult({ set: { type: "sale" }, remove: [] });
   augmentResult("refine-search", refined);
-  assert.match(refined.data._feedback.note, /only after they agree|only if they agree/i);
-  assert.doesNotMatch(refined.data._feedback.note, /as your NEXT tool call/i);
+  assert.ok(!(refined.data._feedback?.signals ?? []).includes("refined"));
+  const zero = { data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 0 } } };
+  augmentResult("Search_Listings", zero);
+  assert.match(zero.data._feedback.note, /restated Search_Listings prompt with repairsNlpId repairs the rest/);
+  process.env.FEEDBACK_AUTO_CAPTURE = "narrow";
+  const narrow = { data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 0 } } };
+  augmentResult("Search_Listings", narrow);
+  assert.doesNotMatch(narrow.data._feedback.note, /repairsNlpId/);
+});
 
-  const search = {
-    data: { request: { url: "https://api.repliers.io/listings?minBeds=5" }, listings: { count: 0 } },
-  };
-  augmentResult("Search_Listings", search);
-  assert.doesNotMatch(search.data._feedback.note, /report via send-feedback/i,
-    "unconditional report instruction must not survive in always-ask mode");
+test("full mode without TRELLO_AUTO_LIST_ID: capture is off, so the refined offer is made", () => {
+  process.env.FEEDBACK_AUTO_CAPTURE = "full";
+  delete process.env.TRELLO_AUTO_LIST_ID;
+  const result = refineResult({ set: { type: "sale" }, remove: [] });
+  augmentResult("refine-search", result);
+  assert.ok(result.data._feedback.signals.includes("refined"));
+  const zero = { data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 0 } } };
+  augmentResult("Search_Listings", zero);
+  assert.doesNotMatch(zero.data._feedback.note, /repairsNlpId/);
+});
+
+test("a presentation-only refine-search gets no refined note", () => {
+  const result = refineResult({ set: { pageNum: 2 }, remove: [] }, false);
+  augmentResult("refine-search", result);
+  assert.ok(!(result.data._feedback?.signals ?? []).includes("refined"));
+});
+
+test("the refined note needs the feedback channel and a prompt level above off", () => {
+  const changed = { set: { type: "sale" }, remove: [] };
+  delete process.env.TRELLO_API_KEY;
+  const noTrello = refineResult(changed);
+  augmentResult("refine-search", noTrello);
+  assert.equal(noTrello.data._feedback, undefined);
+  process.env.TRELLO_API_KEY = "k";
+  process.env.FEEDBACK_PROMPT_LEVEL = "off";
+  const off = refineResult(changed);
+  augmentResult("refine-search", off);
+  assert.equal(off.data._feedback, undefined);
+});
+
+test("a Search_Listings result never gets a refined note", () => {
+  const result = { ...refineResult({ set: { type: "sale" }, remove: [] }) };
+  augmentResult("Search_Listings", result);
+  assert.ok(!(result.data._feedback?.signals ?? []).includes("refined"));
+});
+
+// ChatGPT's safety layer flags approval-steering wording (design.md §2.2); notes are statements.
+test("no note uses imperative or approval-steering wording", () => {
+  const results = [
+    ["Search_Listings", { data: { request: { url: "https://api.repliers.io/listings?minBeds=5" }, listings: { count: 0 } } }],
+    ["Search_Listings", { data: { request: { url: "https://api.repliers.io/listings?city=X" }, listings: { count: 3 }, big: "x".repeat(1_000_001) } }],
+    ["refine-search", refineResult({ set: { type: "sale" }, remove: ["class"] })],
+  ];
+  for (const [tool, result] of results) {
+    augmentResult(tool, result);
+    assert.doesNotMatch(result.data._feedback.note, /MUST|REQUIRED|no need to ask|without asking|only after|NEXT tool call/);
+  }
 });

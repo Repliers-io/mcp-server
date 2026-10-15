@@ -186,6 +186,9 @@ rather than `instructed`'s always-in-context text, which is an upper bound, not 
 
 ## Consent policy: `FEEDBACK_CONSENT`
 
+> **Superseded 2026-10 by feedback v2** ([../feedback-v2/design.md](../feedback-v2/design.md) §7.4): the
+> switch is retired. The text below records the v1 behaviour.
+
 `auto` (default) keeps the shipped behaviour: technical failures (api-error, a confirmed misparse) are reported without asking, subjective complaints are offered first.
 
 `always-ask` makes consent mandatory for **every** category. It is a single switch that rewrites all three delivery channels at once, so they can never disagree:

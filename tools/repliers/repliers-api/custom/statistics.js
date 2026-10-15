@@ -1,3 +1,4 @@
+import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Comprehensive Repliers API Listings Search Tool
@@ -7,7 +8,6 @@ import { apiBaseUrl } from "../../../../lib/apiBase.js";
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   // const defaultResultsPerPage = parseInt(process.env.RESULTS_PER_PAGE) || 20;
   let finalUrl;
 
@@ -62,18 +62,8 @@ const executeFunction = async (args) => {
     // Capture final URL
     finalUrl = url.toString();
 
-    // Set headers
-    const headers = {
-      Accept: "application/json",
-      "REPLIERS-API-KEY": apiKey,
-    };
-
-    // Determine if we need to send a body
     const hasBodyParams = Object.keys(bodyParams).length > 0;
-
-    if (hasBodyParams) {
-      headers["Content-Type"] = "application/json";
-    }
+    const headers = apiHeaders(args, { json: hasBodyParams });
 
     // Execute request
     const response = await fetch(finalUrl, {
@@ -83,14 +73,8 @@ const executeFunction = async (args) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      return {
-        url: finalUrl,
-        method: hasBodyParams ? "POST" : "GET",
-        status: response.status,
-        error: errorData.error || "API request failed",
-        details: errorData.details || errorData,
-      };
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, method: hasBodyParams ? "POST" : "GET", status, body, error: errorMessage(body) || `HTTP ${status}` };
     }
 
     const data = await response.json();
@@ -113,11 +97,7 @@ const executeFunction = async (args) => {
     };
   } catch (error) {
     console.error("Repliers API error:", error);
-    return {
-      url: finalUrl,
-      error: "Network or processing error",
-      details: error.message,
-    };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 

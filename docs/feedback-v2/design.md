@@ -265,21 +265,29 @@ appliedFilters }>`, filled by every successful `Search_Listings` response.
 
 ### 6.2 Signals
 
+> **Owner decision 2026-10-15.** Automatic refine-search capture would flood the board, so capture is
+> narrowed to deterministic defects. The refine-correction and restated-search signals, the
+> `repairsNlpId` parameter and the session search memory are removed. A parse correction is instead
+> offered to the user (`refined` note in `_feedback`) and reported with `send-feedback`
+> (`nlp-misparse`) once they agree.
+
 | Signal | Source | Card content |
 |---|---|---|
-| refine correction | `refine-search` result with `constraintPatch === true` | 🧩 nlpId and prompt of the search being corrected (from `session.searches` by `args.url`), URL before and after, each set/removed parameter with its value |
 | discarded parameter | `Search_Listings` result with non-empty `appliedFilters.unrecognized` | 🧩 prompt, nlpId, URL, the discarded names |
-| restated search | `Search_Listings` called with `repairsNlpId` | 🧩 both prompts, both URLs, the `appliedFilters` families present in the new parse and absent from the old |
 | upstream / nlp-scope error | classification `capture === true` | ❌ tool, status, body, URL, prompt when the tool is `Search_Listings` |
 
-`repairsNlpId` is a new optional `Search_Listings` parameter: "nlpId of an earlier Search_Listings
-call that this call restates because its parse missed a constraint." It turns the report into one
-field of a call the model is making anyway — no extra write call, no confirmation dialog, no
-write-action safety check. If the earlier nlpId is not in `session.searches` (a different process, a
-restart), the card is still written with the new search only.
+**Modes (`FEEDBACK_AUTO_CAPTURE`).** `narrow` is the default, and any unknown value means narrow: the two
+signals above are all that is captured, which is the owner decision of 2026-10-15. `full` restores the
+original behaviour: refine corrections (`refine:` key, prompt tied back through the session search
+memory) and restated searches (`restated:` key, driven by `repairsNlpId`, which `Search_Listings`
+exposes only in this mode) are captured as well, and instructions rules 2 and 3 and the refine-search,
+search-listings and send-feedback descriptions use the pre-change wording. In `full` the `recorded`
+note replaces the `refined` offer. The mode is read per call; tool-description gating is read at
+import. Redaction, quoting, quotas, both breaker budgets and the `repairsNlpId` pattern check apply in
+both modes, and the auto list (§6.6) gates capture in both.
 
-When the session map has no entry for a refine (restart, different dyno), the card is written without
-nlpId and prompt. Capture never blocks or alters the tool response.
+In narrow mode `session` holds only the per-session capture quota. Capture never blocks or alters the tool
+response.
 
 ### 6.3 Deduplication
 
@@ -288,18 +296,15 @@ card however many places it occurs in:
 
 | Signal | Key |
 |---|---|
-| refine correction | `refine:` + sorted names of the changed parameters, e.g. `refine:type` |
 | discarded parameter | `unrecognized:` + sorted names |
-| restated search | `restated:` + sorted gained families, or `restated:unknown` |
 | upstream | `upstream:<tool>:<status>:<first 80 chars of message>` |
 | nlp-scope | `nlp-scope:<message>` |
 
 The first occurrence creates a card. Later occurrences in the window add a Trello comment carrying
 that instance's prompt, nlpId and values — at most 10 comments per key per window — because every
-distinct prompt is a test case the NLP team can use. Applied to the §3 baseline: M1's three refines
-all key to `refine:type` (one card, two comments), S2's two to `refine:propertyType,status,type`,
-S4-low's four to `refine:status,type`. Overlapping keys (`type` vs `status,type`) still produce
-separate cards; name-set keys are deliberately coarse, not a root-cause match.
+distinct prompt is a test case the NLP team can use. Name-set keys are deliberately coarse, not a
+root-cause match. (The refine and restated keys of the original design were removed on 2026-10-15,
+see §6.2.)
 
 A circuit breaker caps new cards at 20 per process per hour; overflow is logged to stderr and
 dropped, so an upstream outage cannot flood the board.
@@ -313,16 +318,27 @@ one-line summary generated from the signal. Body: signal, tool, prompt, nlpId, U
 discarded parameters, error status and body, ISO timestamp. Never included: API keys, user identity,
 OAuth claims. Everything in a card is data the Repliers API already received in that request.
 
+Personal data: error cards carry the request path and parameter names, not values, and response
+bodies only for the listing-search tools; CRM and message tools never put client data on the board.
+
 ### 6.5 What the model sees
 
-`_feedback` gains a `recorded` signal with a factual note, e.g. *"Recorded for the Repliers team:
-this call changed type, which the original parse missed."* The `refined` note's "REQUIRED … as your
-NEXT tool call" wording goes away with the need for it.
+`_feedback` gains a `recorded` signal with a factual note, e.g. *"Recorded for the Repliers team: the
+API discarded zeta from an NLP-built search."* After a refine-search call that changed a constraint
+it carries a `refined` signal instead: *"This call changed type, which the original parse missed or
+mis-mapped. send-feedback (category nlp-misparse, missedConstraints) can report it to the Repliers
+team if the user agrees."* Neither uses "REQUIRED … as your NEXT tool call" wording.
 
 ### 6.6 Gating
 
-Capture runs only when `trelloConfigured()`; `FEEDBACK_DRY_RUN` writes cards and comments to the
-dry-run log as today. Without Trello, nothing is captured and no text mentions recording (§7.4).
+Auto cards go to their own Trello list, `TRELLO_AUTO_LIST_ID`, apart from model-written `[MCP]` cards
+(`createCard(card, { listId })`). Capture runs only when `autoCaptureConfigured()`: `FEEDBACK_DRY_RUN`,
+or `TRELLO_API_KEY` + `TRELLO_API_TOKEN` + `TRELLO_AUTO_LIST_ID`. Dry-run writes cards and comments to
+the dry-run log as today. With Trello configured but no `TRELLO_AUTO_LIST_ID`, capture is off,
+`run()` logs `[CONFIG] TRELLO_AUTO_LIST_ID is not set: server-side capture is off; send-feedback still
+works.` once, and no tool text, instruction or `recorded` note claims recording; `send-feedback`
+stays gated on `trelloConfigured()` alone. Without Trello, nothing is captured and no text mentions
+recording (§7.4).
 
 ---
 

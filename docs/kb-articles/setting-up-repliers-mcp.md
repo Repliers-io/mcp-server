@@ -47,7 +47,9 @@ Once configured, the `Search_Listings` tool will accept natural language queries
 
 ### How the assistant keeps searches honest
 
-Every `Search_Listings` response leads with an `appliedFilters` block that shows which filters were actually applied — location, property type, style, price range, bedrooms and so on. The assistant is instructed to compare that block against your request before presenting results, because the NLP parser occasionally drops or substitutes a constraint. When it finds a mismatch it fixes it with `refine-search`, which re-runs the previous search with only the named parameters corrected, and can report the misparse to the Repliers team with `send-feedback` so the parser improves over time. You will always be told when a report is sent.
+Every `Search_Listings` response leads with an `appliedFilters` block that shows which filters were actually applied — location, property type, style, price range, bedrooms and so on. The assistant is instructed to compare that block against your request before presenting results, because the NLP parser occasionally drops or substitutes a constraint. When it finds a mismatch it fixes it with `refine-search`, which re-runs the previous search with only the named parameters corrected.
+
+Failures the server detects itself — Repliers service errors, search corrections, parameters the API discarded and searches restated after a misparse — are recorded automatically on the Repliers triage board, without asking, so the parser and the API improve over time. The server tells the assistant each time one is recorded, so it can mention it. When you ask the assistant to report something, it sends the Repliers team a report with `send-feedback`; when you are unhappy with the results, it offers to. On a self-hosted server, both happen only when Trello keys are configured (see [Optional configuration](#optional-configuration)).
 
 ---
 
@@ -279,10 +281,12 @@ Make sure your `.env` file contains your `REPLIERS_API_KEY`. `-i` is required (w
 | Variable | Effect |
 | ---- |
 | `REPLIERS_API_BASE_URL` | Points every tool at a different Repliers deployment (default `https://api.repliers.io`) |
-| `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `TRELLO_LIST_ID` | Enables the `send-feedback` tool, which files search-quality reports as Trello cards on your own board. Without all three, the tool is hidden and the assistant is never asked to report anything |
-| `FEEDBACK_DRY_RUN` | `true` enables `send-feedback` without Trello keys; reports are written to the server's log instead of posted |
-| `FEEDBACK_PROMPT_LEVEL` | How eagerly the server nudges the assistant to verify results and report problems: `high` (default), `low` (only on detected problems) or `off` |
-| `FEEDBACK_CONSENT` | `auto` (default) reports technical failures without asking the user; `always-ask` requires the user's agreement before any report is sent |
+| `TRELLO_API_KEY`, `TRELLO_API_TOKEN`, `TRELLO_LIST_ID` | Enables the `send-feedback` tool, which files search-quality reports as Trello cards on your own board. Without all three, the tool is hidden, nothing is recorded and the assistant is never asked to report anything |
+| `TRELLO_AUTO_LIST_ID` | Optional. A second Trello list (same board) that receives automatic `[MCP·auto]` cards for defects the server detects itself: parameters the API discarded and Repliers service errors (deduplicated; at most 20 new cards per hour for service errors and 20 for discarded parameters). Parse corrections are not captured automatically; the assistant offers them to the user and reports them with `send-feedback` once the user agrees. Without it, automatic capture is off and a startup line says so |
+| `FEEDBACK_AUTO_CAPTURE` | Optional, `narrow` (default) or `full`. `full` also captures refine-search corrections and restated searches automatically (needs `TRELLO_AUTO_LIST_ID`); expect more cards |
+| `FEEDBACK_DRY_RUN` | `true` makes the feedback channel act configured without Trello keys: `send-feedback` reports and automatic cards are written to the server's log instead of posted |
+| `FEEDBACK_PROMPT_LEVEL` | How eagerly the server reminds the assistant to check results against your request: `high` (default, on every search), `low` (only on detected problems) or `off`. It does not change what the server records automatically |
+| `FEEDBACK_CONSENT` | No longer used. Failures the server detects are recorded automatically; the assistant sends a report when you ask and offers one when you are unhappy with results |
 
 Restart the server after every `.env` change.
 
@@ -371,7 +375,7 @@ Once connected, your AI assistant can use the full suite of Repliers tools, orga
 ### Feedback
 | Tool | Description |
 | ---- |
-| `send-feedback` | Report a search-quality or API problem to the Repliers team (an NLP misparse, an API error, wrong or empty results). Available on the hosted server; on a self-hosted server only when Trello keys are configured |
+| `send-feedback` | Send the Repliers team a report when you ask for one or are unhappy with the results (wrong or empty results, a misread request). Failures the server detects itself are recorded without it. Available on the hosted server; on a self-hosted server only when Trello keys are configured |
 
 Every tool is annotated as read-only or mutating, so clients that hide write operations (for example read-only ChatGPT connectors) filter the list automatically.
 

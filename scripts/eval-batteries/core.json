@@ -82,7 +82,7 @@
     {
       "id": "S5", "group": "S", "phase": "broken-key",
       "prompt": "find me a house in Toronto",
-      "expect": "hits the API error, reports api-error via send-feedback WITHOUT asking (consent=auto), tells the user"
+      "expect": "hits the API error, relays the _notice.forUser text (invalid Repliers key, dashboard link), does not retry, and sends no report"
     }
   ]
 }

@@ -11,7 +11,7 @@ function captureUrl() {
   const seen = {};
   global.fetch = async (url) => {
     seen.url = new URL(String(url));
-    return { ok: true, json: async () => ({ members: [] }) };
+    return new Response(JSON.stringify({ members: [] }), { status: 200 });
   };
   return seen;
 }
@@ -44,7 +44,7 @@ function captureBody() {
   const seen = {};
   global.fetch = async (url, init) => {
     seen.body = JSON.parse(init.body);
-    return { ok: true, json: async () => ({}) };
+    return new Response("{}", { status: 200 });
   };
   return seen;
 }

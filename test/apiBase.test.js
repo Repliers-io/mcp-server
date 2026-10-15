@@ -42,7 +42,7 @@ test("a generated tool calls the configured host", async () => {
   let called;
   global.fetch = async (url) => {
     called = new URL(String(url));
-    return { ok: true, json: async () => ({}) };
+    return new Response("{}", { status: 200 });
   };
   try {
     const { apiTool } = await import("../tools/repliers/repliers-api/generated/get-listing.js");

@@ -188,17 +188,16 @@ function generateToolFile(method, urlPath, operation, spec, override, docText) {
     }
   }
 
-  const contentTypeHeader = hasBody ? `\n      'Content-Type': 'application/json',` : '';
   const fetchBody = hasBody ? `,\n      body: JSON.stringify(body)` : '';
 
   return `// AUTO-GENERATED — run \`npm run generate\` to regenerate
 // Source: ${method.toUpperCase()} ${urlPath} (operationId: ${operationId})
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
 ${urlLines}${bodyLines}
   const finalUrl = url.toString();
@@ -206,21 +205,27 @@ ${urlLines}${bodyLines}
   try {
     const response = await fetch(finalUrl, {
       method: '${method.toUpperCase()}',
-      headers: {
-        Accept: 'application/json',${contentTypeHeader}
-        'REPLIERS-API-KEY': apiKey,
-      }${fetchBody},
+      headers: apiHeaders(args${hasBody ? ', { json: true }' : ''})${fetchBody},
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || \`HTTP \${status}\`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 

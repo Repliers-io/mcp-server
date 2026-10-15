@@ -2,10 +2,10 @@
 // Source: GET /listings/{mlsNumber}/similar (operationId: find-similar-listings)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/listings/{mlsNumber}/similar';
   urlPath = urlPath.replace('{mlsNumber}', encodeURIComponent(String(args.mlsNumber)));
@@ -23,21 +23,27 @@ const executeFunction = async (args) => {
   try {
     const response = await fetch(finalUrl, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -47,7 +53,7 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "get-similar-listings",
-      description: "Return listings similar to a given mlsNumber by price range, type, and location proximity. Use to power a \"similar homes\" or \"you may also like\" section on a listing detail page. Key params: mlsNumber (required), boardId, listPriceRange, radius, sortBy. NOT a general search — use Search_Listings. If results look wrong or incomplete — see send-feedback.",
+      description: "Return listings similar to a given mlsNumber by price range, type, and location proximity. Use to power a \"similar homes\" or \"you may also like\" section on a listing detail page. Key params: mlsNumber (required), boardId, listPriceRange, radius, sortBy. NOT a general search — use Search_Listings.",
       parameters: {
         type: 'object',
         properties: {
