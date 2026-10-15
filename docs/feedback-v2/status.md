@@ -5,9 +5,10 @@
 
 ## Where we are
 
-Design agreed in chat section by section (2026-10-12 – 2026-10-14) and written up in
-[design.md](./design.md); **the written spec is awaiting owner review.** No v2 code yet. Next after
-approval: an implementation plan (`plan.md`), then code.
+Design agreed in chat section by section (2026-10-12 – 2026-10-14), written up in
+[design.md](./design.md) and approved by the owner on 2026-10-14. **Implementation plan written:
+[plan.md](./plan.md), 13 TDD tasks, awaiting owner review and a choice of execution method.** No v2
+code yet.
 
 ## Prerequisite done (uncommitted): OpenAPI sync — 2026-10-14
 

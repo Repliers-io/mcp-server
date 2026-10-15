@@ -6,7 +6,7 @@ Scripts are in `package.json`. `npm test` is fully offline — `fetch` is mocked
 
 ## Where work is tracked
 
-Each feature has `docs/<feature>/{design,plan,status,test-plan}.md`. **`status.md` is the resume point — read the newest one before starting anything.** Currently: [docs/feedback-v2/status.md](docs/feedback-v2/status.md) (server-side capture, actionable errors, neutral tool text; spec in review), [docs/oauth21/status.md](docs/oauth21/status.md) (OAuth 2.1 resource server; blocked on the PropelAuth dashboard) and [docs/agent-feedback/status.md](docs/agent-feedback/status.md) (shipped; open items listed there). Upstream API defects found by the eval battery: [docs/repliers-defects-2026-08-29.md](docs/repliers-defects-2026-08-29.md).
+Each feature has `docs/<feature>/{design,plan,status,test-plan}.md`. **`status.md` is the resume point — read the newest one before starting anything.** Currently: [docs/feedback-v2/status.md](docs/feedback-v2/status.md) (server-side capture, actionable errors, neutral tool text; spec approved, implementation plan in review), [docs/oauth21/status.md](docs/oauth21/status.md) (OAuth 2.1 resource server; blocked on the PropelAuth dashboard) and [docs/agent-feedback/status.md](docs/agent-feedback/status.md) (shipped; open items listed there). Upstream API defects found by the eval battery: [docs/repliers-defects-2026-08-29.md](docs/repliers-defects-2026-08-29.md).
 
 Known gap in this server: `Search_Listings` sets no `resultsPerPage`/`fields` on the `/nlp` call and returns the payload verbatim; responses of several MB have exceeded MCP clients' tool-result limits. The 1 MB check in `lib/feedbackHints.js` only appends a nudge, it does not truncate.
 
