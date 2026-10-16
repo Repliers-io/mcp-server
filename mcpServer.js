@@ -17,6 +17,8 @@ import { callTool, createSessionState } from "./lib/toolCall.js";
 import { autoCaptureNotice } from "./lib/autoReport.js";
 import { userAgent } from "./lib/apiRequest.js";
 import { buildServerInstructions } from "./lib/serverInstructions.js";
+import { loadSkills } from "./lib/skills.js";
+import { registerSkillHandlers, serverCapabilities } from "./lib/skillHandlers.js";
 import { createIntrospectionVerifier } from "./lib/oauthVerifier.js";
 import { createKeyResolver } from "./lib/repliersKey.js";
 import {
@@ -157,8 +159,16 @@ async function transformTools(tools) {
     .filter(Boolean);
 }
 
+// Read once: the skill files ship in the deployed slug and never change while the process runs.
+const skills = loadSkills(path.join(__dirname, "skills"));
+console.error(`[DEBUG] ${skills.length} skill(s) loaded: ${skills.map((s) => s.entry.uri).join(", ") || "none"}`);
+
 async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
+
+  // skills/list, skills/get, resources/list|read. On HTTP these run behind the same auth chain as
+  // the tools, because they are registered on the same per-session Server.
+  registerSkillHandlers(server, skills);
 
   // List tools handler. Every authenticated caller sees the whole roster: a token that opens
   // the server can call anything on it.
@@ -446,7 +456,7 @@ async function run() {
 
           const server = new Server(
             serverImplementation(),
-            { capabilities: { tools: {} }, instructions: buildServerInstructions() }
+            { capabilities: serverCapabilities(), instructions: buildServerInstructions() }
           );
           server.onerror = (error) => {
             if (clientFaults.has(error)) {
@@ -532,9 +542,7 @@ async function run() {
       const server = new Server(
         serverImplementation(),
         {
-          capabilities: {
-            tools: {},
-          },
+          capabilities: serverCapabilities(),
           instructions: buildServerInstructions(),
         }
       );
