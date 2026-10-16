@@ -2,40 +2,47 @@
 // Source: GET /searches (operationId: filter-searches)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/searches`);
 
-  if (args.agentId !== undefined) url.searchParams.set('agentId', String(args.agentId));
-  if (args.clientId !== undefined) url.searchParams.set('clientId', String(args.clientId));
-  if (args.pageNum !== undefined) url.searchParams.set('pageNum', String(args.pageNum));
-  if (args.resultsPerPage !== undefined) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
-  if (args.searchId !== undefined) url.searchParams.set('searchId', String(args.searchId));
-  if (args.status !== undefined) url.searchParams.set('status', String(args.status));
+  if (args.agentId != null) url.searchParams.set('agentId', String(args.agentId));
+  if (args.clientId != null) url.searchParams.set('clientId', String(args.clientId));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.searchId != null) url.searchParams.set('searchId', String(args.searchId));
+  if (args.status != null) url.searchParams.set('status', String(args.status));
+  if (args.sortBy != null) url.searchParams.set('sortBy', String(args.sortBy));
 
   const finalUrl = url.toString();
 
   try {
     const response = await fetch(finalUrl, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -68,6 +75,8 @@ export const apiTool = {
           "resultsPerPage": {
             "type": "integer",
             "format": "int32",
+            "minimum": 1,
+            "maximum": 100,
             "default": 100,
             "description": "The number of searches to return per page."
           },
@@ -79,6 +88,14 @@ export const apiTool = {
           "status": {
             "type": "boolean",
             "description": ""
+          },
+          "sortBy": {
+            "type": "string",
+            "enum": [
+              "updated",
+              "created"
+            ],
+            "description": "Sorts the results. <code>updated</code> orders by last update date (newest first), <code>created</code> orders by creation date (newest first). If not specified, results are ordered by searchId descending."
           }
         },
         required: [],

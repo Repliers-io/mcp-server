@@ -1,3 +1,4 @@
+import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Function to get enumerated values using the Repliers API.
@@ -9,7 +10,6 @@ import { apiBaseUrl } from "../../../../lib/apiBase.js";
  */
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   let finalUrl; // Declare here to use in error handling
   
   try {
@@ -25,24 +25,18 @@ const executeFunction = async (args) => {
       url.searchParams.set('listings', String(args.listings));
     }
     
-    // Set up headers for the request
-    const headers = {
-      Accept: "application/json",
-      "REPLIERS-API-KEY": apiKey,
-    };
-    
     finalUrl = url.toString(); // Capture the final URL
     
     // Perform the fetch request
     const response = await fetch(finalUrl, {
       method: "GET",
-      headers,
+      headers: apiHeaders(args),
     });
     
     // Check if the response was successful
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(JSON.stringify(errorData));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
     
     // Parse and return the response data
@@ -53,11 +47,7 @@ const executeFunction = async (args) => {
     };
   } catch (error) {
     console.error("Error getting the enumerated values:", error);
-    return {
-      error: "An error occurred while getting the enumerated values.",
-      details: error.message,
-      url: finalUrl
-    };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 

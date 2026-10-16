@@ -2,36 +2,38 @@
 // Source: POST /buildings (operationId: post_buildings)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/buildings`);
 
-  if (args.area !== undefined) args.area.forEach(v => url.searchParams.append('area', String(v)));
-  if (args.buildingName !== undefined) args.buildingName.forEach(v => url.searchParams.append('buildingName', String(v)));
-  if (args.city !== undefined) args.city.forEach(v => url.searchParams.append('city', String(v)));
-  if (args.class !== undefined) args.class.forEach(v => url.searchParams.append('class', String(v)));
-  if (args.displayPublic !== undefined) url.searchParams.set('displayPublic', String(args.displayPublic));
-  if (args.lat !== undefined) url.searchParams.set('lat', String(args.lat));
-  if (args.long !== undefined) url.searchParams.set('long', String(args.long));
-  if (args.map !== undefined) url.searchParams.set('map', String(args.map));
-  if (args.maxPrice !== undefined) url.searchParams.set('maxPrice', String(args.maxPrice));
-  if (args.maxStories !== undefined) url.searchParams.set('maxStories', String(args.maxStories));
-  if (args.minBathrooms !== undefined) url.searchParams.set('minBathrooms', String(args.minBathrooms));
-  if (args.minBedrooms !== undefined) url.searchParams.set('minBedrooms', String(args.minBedrooms));
-  if (args.minPrice !== undefined) url.searchParams.set('minPrice', String(args.minPrice));
-  if (args.minStories !== undefined) url.searchParams.set('minStories', String(args.minStories));
-  if (args.neighborhood !== undefined) args.neighborhood.forEach(v => url.searchParams.append('neighborhood', String(v)));
-  if (args.pageNum !== undefined) url.searchParams.set('pageNum', String(args.pageNum));
-  if (args.propertyType !== undefined) args.propertyType.forEach(v => url.searchParams.append('propertyType', String(v)));
-  if (args.radius !== undefined) url.searchParams.set('radius', String(args.radius));
-  if (args.resultsPerPage !== undefined) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
-  if (args.sortBy !== undefined) url.searchParams.set('sortBy', String(args.sortBy));
-  if (args.streetName !== undefined) args.streetName.forEach(v => url.searchParams.append('streetName', String(v)));
-  if (args.streetNumber !== undefined) args.streetNumber.forEach(v => url.searchParams.append('streetNumber', String(v)));
-  if (args.type !== undefined) url.searchParams.set('type', String(args.type));
+  if (args.area != null) [args.area].flat().forEach(v => url.searchParams.append('area', String(v)));
+  if (args.buildingName != null) [args.buildingName].flat().forEach(v => url.searchParams.append('buildingName', String(v)));
+  if (args.city != null) [args.city].flat().forEach(v => url.searchParams.append('city', String(v)));
+  if (args.class != null) [args.class].flat().forEach(v => url.searchParams.append('class', String(v)));
+  if (args.displayPublic != null) url.searchParams.set('displayPublic', String(args.displayPublic));
+  if (args.lat != null) url.searchParams.set('lat', String(args.lat));
+  if (args.long != null) url.searchParams.set('long', String(args.long));
+  if (args.map != null) url.searchParams.set('map', String(args.map));
+  if (args.maxPrice != null) url.searchParams.set('maxPrice', String(args.maxPrice));
+  if (args.maxStories != null) url.searchParams.set('maxStories', String(args.maxStories));
+  if (args.minBathrooms != null) url.searchParams.set('minBathrooms', String(args.minBathrooms));
+  if (args.minBedrooms != null) url.searchParams.set('minBedrooms', String(args.minBedrooms));
+  if (args.minPrice != null) url.searchParams.set('minPrice', String(args.minPrice));
+  if (args.minStories != null) url.searchParams.set('minStories', String(args.minStories));
+  if (args.neighborhood != null) [args.neighborhood].flat().forEach(v => url.searchParams.append('neighborhood', String(v)));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.propertyType != null) [args.propertyType].flat().forEach(v => url.searchParams.append('propertyType', String(v)));
+  if (args.radius != null) url.searchParams.set('radius', String(args.radius));
+  if (args.radiusUnit != null) url.searchParams.set('radiusUnit', String(args.radiusUnit));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.sortBy != null) url.searchParams.set('sortBy', String(args.sortBy));
+  if (args.streetName != null) [args.streetName].flat().forEach(v => url.searchParams.append('streetName', String(v)));
+  if (args.streetNumber != null) [args.streetNumber].flat().forEach(v => url.searchParams.append('streetNumber', String(v)));
+  if (args.type != null) url.searchParams.set('type', String(args.type));
+  if (args.status != null) [args.status].flat().forEach(v => url.searchParams.append('status', String(v)));
 
   const body = {};
   if (args.map !== undefined) body.map = args.map;
@@ -41,23 +43,28 @@ const executeFunction = async (args) => {
   try {
     const response = await fetch(finalUrl, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-      'Content-Type': 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args, { json: true }),
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -108,24 +115,24 @@ export const apiTool = {
           "displayPublic": {
             "type": "string",
             "enum": [
-              "yes",
-              "no"
+              "Y",
+              "N"
             ],
-            "description": "Filters buildings by public display status. Y returns buildings that may be displayed publicly, N returns buildings that should be password protected."
+            "description": "Filters buildings by public display status. Y returns buildings that may be displayed publicly, N returns buildings that should be password protected. Note - this parameter is currently validated but has no effect on the results."
           },
           "lat": {
             "type": "number",
             "format": "float",
             "minimum": -90,
             "maximum": 90,
-            "description": "Accepts a value for latitude. Must be used with radius parameter to return buildings within a certain radius of a given latitude and longitude."
+            "description": "Accepts a value for latitude. Must be used together with the long and radius parameters to return buildings within a certain radius of a given latitude and longitude. If any one of lat, long or radius is provided, all three are required."
           },
           "long": {
             "type": "number",
             "format": "float",
             "minimum": -180,
             "maximum": 180,
-            "description": "Accepts a value for longitude. Must be used with radius parameter to return buildings within a certain radius of a given latitude and longitude."
+            "description": "Accepts a value for longitude. Must be used together with the lat and radius parameters to return buildings within a certain radius of a given latitude and longitude. If any one of lat, long or radius is provided, all three are required."
           },
           "map": {
             "type": "object",
@@ -155,7 +162,7 @@ export const apiTool = {
           },
           "maxPrice": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
             "description": "Filters buildings whose listing prices are <= the supplied value."
           },
           "maxStories": {
@@ -175,7 +182,7 @@ export const apiTool = {
           },
           "minPrice": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
             "description": "Filters buildings whose listing prices are >= the supplied value."
           },
           "minStories": {
@@ -204,15 +211,25 @@ export const apiTool = {
             "description": "Filters buildings by property type."
           },
           "radius": {
-            "type": "number",
-            "format": "float",
+            "type": "integer",
             "minimum": 1,
-            "description": "Accepts a value for radius in KM. Must be used with `lat` and `long` parameters to return buildings within the specified radius of a given latitude and longitude."
+            "description": "Accepts a value for radius, expressed in the unit set by `radiusUnit` (KM by default). Must be used with `lat` and `long` parameters to return buildings within the specified radius of a given latitude and longitude. If any one of lat, long or radius is provided, all three are required. Must be a whole number greater than 0."
+          },
+          "radiusUnit": {
+            "type": "string",
+            "enum": [
+              "m",
+              "km",
+              "mi",
+              "yd"
+            ],
+            "default": "km",
+            "description": "Sets the unit of measurement for the `radius` parameter. Can only be used together with `radius`.\n\nAllowed values:\n\n- `km` — kilometers (default)\n- `m` — meters\n- `mi` — miles\n- `yd` — yards\n"
           },
           "resultsPerPage": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 300,
+            "maximum": 100,
             "default": 100,
             "description": "The number of buildings to return per page."
           },
@@ -221,7 +238,7 @@ export const apiTool = {
             "enum": [
               "numUnitsDesc"
             ],
-            "description": "Sorts results by the specified field."
+            "description": "Sorts results by the specified field. Note - this parameter is currently validated but has no effect on the order of the results."
           },
           "streetName": {
             "type": "array",
@@ -244,6 +261,17 @@ export const apiTool = {
               "lease"
             ],
             "description": "Filters buildings by listing type."
+          },
+          "status": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "A",
+                "U"
+              ]
+            },
+            "description": "Filters buildings by the status of their listings. A returns buildings with available listings, U returns buildings with unavailable listings. Values are case-insensitive. Repeat the parameter to supply both."
           }
         },
         required: [],

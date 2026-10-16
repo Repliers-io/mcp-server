@@ -1,6 +1,5 @@
 import { buildFeedbackCard } from "../../../../lib/feedbackCard.js";
-import { createCard, trelloConfigured } from "../../../../lib/trello.js";
-import { consentMode } from "../../../../lib/feedbackHints.js";
+import { createCard, trelloConfigured, autoCaptureConfigured, effectiveCaptureMode } from "../../../../lib/trello.js";
 
 const categories = [
   "nlp-misparse", "empty-results", "wrong-results", "api-error", "user-dissatisfied", "other",
@@ -11,18 +10,28 @@ const executeFunction = async (args) => {
     return { error: `category must be one of: ${categories.join(", ")}` };
   }
   const card = buildFeedbackCard(args);
-  const { cardUrl, ...result } = await createCard(card);
+  const { ok, cardUrl, error } = await createCard(card);
   // The card lands on an internal triage board the end user has no access to. An agent given the
   // link relays it as proof the report went through, leaving a dead link in a conversation about
-  // property. Operators get it on stderr; the agent gets a plain acknowledgement.
+  // property. Operators get it on stderr; the agent gets a plain, user-safe acknowledgement.
   if (cardUrl) console.error(`[feedback] card created: ${cardUrl}`);
-  return { url: "https://api.trello.com/1/cards", data: result };
+  return {
+    url: "https://api.trello.com/1/cards",
+    data: ok ? { recorded: true, forUser: "The report was sent to the Repliers team." } : { recorded: false, error },
+  };
 };
 
-const description =
-  consentMode() === "always-ask"
-    ? `Report a search-quality or API problem to the Repliers team (creates a triage ticket). Required parameters: category, summary, userQuery. CONSENT REQUIRED — this server is configured so that no report may be sent without the user's agreement, for every category including api-error and nlp-misparse: describe what went wrong, ask whether to report it, and call this tool only after the user says yes. If they decline, do not send. Categories: a tool returned an error (api-error); the NLP parse dropped or substituted a constraint that you then repaired via refine-search or a restated prompt (nlp-misparse — include missedConstraints); results formally match but the user says they are wrong (wrong-results / user-dissatisfied); an empty result set that looks legitimate (empty-results). Always tell the user when a report was sent. Repair first, report second: feedback never replaces serving the user.`
-    : `Report a search-quality or API problem to the Repliers team (creates a triage ticket). Required parameters: category, summary, userQuery. WHEN TO USE — technical failures, report directly without asking the user (the report contains nothing beyond what was already sent to the API): a tool returned an error (category api-error); you confirmed the NLP parse dropped or substituted a user constraint, after repairing it via refine-search or a restated prompt (category nlp-misparse — include missedConstraints). Subjective problems — OFFER first, send after the user agrees: results formally match but the user says they are wrong (wrong-results / user-dissatisfied); an empty result set that looks legitimate (empty-results). Always send when the user explicitly asks to report an issue, and always tell the user when a report was sent. Repair first, report second: feedback never replaces serving the user.`;
+// The automatic-recording sentence is stated only while auto capture can actually happen.
+const automatic = autoCaptureConfigured()
+  ? " Discarded parameters and Repliers service errors are recorded automatically and need no ticket."
+  : "";
+
+const narrowDescription = `Creates a triage ticket for the Repliers team about a search-quality or service problem.${automatic} This tool covers: a report the user asks for; results the user considers wrong (wrong-results, user-dissatisfied, empty-results); a parse correction the user agreed to report (nlp-misparse, with missedConstraints). Required parameters: category, summary, userQuery.`;
+
+// Read at import: a FEEDBACK_AUTO_CAPTURE change needs a restart. =full keeps the pre-2026-10-15 text while capture is on.
+const fullDescription = `Creates a triage ticket for the Repliers team about a search-quality or service problem. Failures the server observes itself — Repliers service errors, refine-search corrections, parameters the API discarded, searches restated with repairsNlpId — are recorded automatically and need no ticket. This tool covers what only the conversation shows: a report the user asks for, or results the user considers wrong (wrong-results, user-dissatisfied, empty-results). Required parameters: category, summary, userQuery.`;
+
+const description = effectiveCaptureMode() === "full" ? fullDescription : narrowDescription;
 
 const definition = {
   type: "function",

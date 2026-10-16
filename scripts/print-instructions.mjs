@@ -10,7 +10,6 @@
 // truth either way, so the two channels cannot drift.
 //
 //   node scripts/print-instructions.mjs                      # current .env / process env
-//   node scripts/print-instructions.mjs --consent always-ask # force the consent-first wording
 //   node scripts/print-instructions.mjs --no-feedback        # the Trello-absent variant
 //   node scripts/print-instructions.mjs --out connector.txt
 //
@@ -24,12 +23,10 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const args = process.argv.slice(2);
-let consent = null;
 let feedback = null;
 let outFile = null;
 for (let i = 0; i < args.length; i += 1) {
   switch (args[i]) {
-    case "--consent": consent = args[(i += 1)]; break;
     case "--no-feedback": feedback = false; break;
     case "--feedback": feedback = true; break;
     case "--out": outFile = resolve(args[(i += 1)]); break;
@@ -50,11 +47,11 @@ for (let i = 0; i < args.length; i += 1) {
 // The builder reads env at call time, so shape the env before importing it.
 const envPath = resolve(repoRoot, ".env");
 if (existsSync(envPath)) process.loadEnvFile(envPath);
-if (consent) process.env.FEEDBACK_CONSENT = consent;
 if (feedback === false) {
   delete process.env.TRELLO_API_KEY;
   delete process.env.TRELLO_API_TOKEN;
   delete process.env.TRELLO_LIST_ID;
+  delete process.env.TRELLO_AUTO_LIST_ID;
   process.env.FEEDBACK_DRY_RUN = "false";
 } else if (feedback === true) {
   process.env.FEEDBACK_DRY_RUN = "true";

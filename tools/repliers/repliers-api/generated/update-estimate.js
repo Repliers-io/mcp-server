@@ -2,10 +2,10 @@
 // Source: PATCH /estimates/{estimateId} (operationId: create-an-estimate-copy)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   let urlPath = '/estimates/{estimateId}';
   urlPath = urlPath.replace('{estimateId}', encodeURIComponent(String(args.estimateId)));
@@ -27,23 +27,28 @@ const executeFunction = async (args) => {
   try {
     const response = await fetch(finalUrl, {
       method: 'PATCH',
-      headers: {
-        Accept: 'application/json',
-      'Content-Type': 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args, { json: true }),
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -87,10 +92,7 @@ export const apiTool = {
                 "type": "string"
               }
             },
-            "required": [
-              "streetName",
-              "streetNumber"
-            ],
+            "required": [],
             "type": "object",
             "description": ""
           },
@@ -137,40 +139,7 @@ export const apiTool = {
               },
               "propertyType": {
                 "type": "string",
-                "enum": [
-                  "Att/Row/Twnhouse",
-                  "Co-Op Apt",
-                  "Co-Ownership Apt",
-                  "Comm Element Condo",
-                  "Condo Apt",
-                  "Condo Townhouse",
-                  "Cottage",
-                  "Det Condo",
-                  "Detached",
-                  "Duplex",
-                  "Farm",
-                  "Fourplex",
-                  "Leasehold Condo",
-                  "Link",
-                  "Locker",
-                  "Lower Level",
-                  "Mobile/Trailer",
-                  "Multiplex",
-                  "Other",
-                  "Parking Space",
-                  "Room",
-                  "Rural Resid",
-                  "Semi-Det Condo",
-                  "Semi-Detached",
-                  "Shared Room",
-                  "Store W/Apt/Offc",
-                  "Store W/Apt/Office",
-                  "Time Share",
-                  "Triplex",
-                  "Upper Level",
-                  "Vacant Land",
-                  "Vacant Land Condo"
-                ]
+                "description": "Must be a property type value that exists in your MLS data. For a list of supported values, make a GET /listings?listings=false&aggregates=details.propertyType request."
               },
               "sqft": {
                 "type": "integer",
@@ -229,7 +198,7 @@ export const apiTool = {
           },
           "clientId": {
             "type": "integer",
-            "description": "Set this to the clientId that the estimate is for if you wish to store the estimate. If sendEmailNow or sendEmailMonthly is used, messages containing estimates will be sent to this clientId.",
+            "description": "The clientId of an existing estimate cannot be changed. If supplied, this value is ignored and the estimate keeps its original client.",
             "format": "int32"
           }
         },

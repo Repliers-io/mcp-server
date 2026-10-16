@@ -6,6 +6,9 @@ const realEnv = {
   TRELLO_API_KEY: process.env.TRELLO_API_KEY,
   TRELLO_API_TOKEN: process.env.TRELLO_API_TOKEN,
   TRELLO_LIST_ID: process.env.TRELLO_LIST_ID,
+  TRELLO_AUTO_LIST_ID: process.env.TRELLO_AUTO_LIST_ID,
+  FEEDBACK_DRY_RUN: process.env.FEEDBACK_DRY_RUN,
+  FEEDBACK_AUTO_CAPTURE: process.env.FEEDBACK_AUTO_CAPTURE,
   FEEDBACK_CONSENT: process.env.FEEDBACK_CONSENT,
 };
 
@@ -13,6 +16,9 @@ beforeEach(() => {
   delete process.env.TRELLO_API_KEY;
   delete process.env.TRELLO_API_TOKEN;
   delete process.env.TRELLO_LIST_ID;
+  delete process.env.TRELLO_AUTO_LIST_ID;
+  delete process.env.FEEDBACK_DRY_RUN;
+  delete process.env.FEEDBACK_AUTO_CAPTURE;
   delete process.env.FEEDBACK_CONSENT;
 });
 
@@ -59,21 +65,6 @@ const withTrello = () => {
   process.env.TRELLO_API_TOKEN = "t";
   process.env.TRELLO_LIST_ID = "l";
 };
-
-test("auto mode: rule 3 lets technical failures be reported without asking", () => {
-  withTrello();
-  const rule3 = buildServerInstructions().split("\n").find((l) => l.startsWith("3."));
-  assert.match(rule3, /without asking the user/i);
-});
-
-test("always-ask mode: rule 3 requires consent for every send", () => {
-  withTrello();
-  process.env.FEEDBACK_CONSENT = "always-ask";
-  const rule3 = buildServerInstructions().split("\n").find((l) => l.startsWith("3."));
-  assert.doesNotMatch(rule3, /without asking the user/i);
-  assert.match(rule3, /never send.*without|only after the user agrees|explicit consent/i);
-  assert.match(rule3, /every category|including/i, "must cover technical failures too");
-});
 
 // The role sentence moved to skills/repliers-real-estate/SKILL.md: OpenAI's plugin guidance for
 // this field is "do not repeat every tool description or try to change the model's personality",
@@ -122,4 +113,88 @@ test("both branches state what the server does NOT have", () => {
     assert.match(text, /say .*(you|we) (do not|don't) have|no such data|outside this server/i,
       "must instruct an honest out-of-scope answer instead of general knowledge");
   }
+});
+
+// Server-observed failures are recorded automatically (rule 3); a headline step telling the model
+// to report would bring back model-filed duplicates and write confirmations on ChatGPT.
+test("both branches share one headline, and it carries no reporting step", () => {
+  const withoutTrello = buildServerInstructions().split("\n")[0];
+  withTrello();
+  const withTrelloText = buildServerInstructions().split("\n")[0];
+  assert.equal(withTrelloText, withoutTrello);
+  assert.equal(withoutTrello,
+    "Required sequence for every listings search: Search_Listings → check appliedFilters against the request → repair any gap.");
+});
+
+const rule3Of = () => buildServerInstructions().split("\n").find((line) => line.startsWith("3."));
+
+test("rule 3 (auto capture on): discards and service errors are recorded, parse corrections are offered", () => {
+  withTrello();
+  process.env.TRELLO_AUTO_LIST_ID = "a";
+  assert.equal(rule3Of(),
+    "3. Report: discarded parameters and Repliers service errors are recorded automatically; _feedback and _notice blocks say when. Parse corrections — a refine-search call or a restated prompt — are offered to the user and reported with send-feedback (nlp-misparse) once they agree; send-feedback also carries any report the user asks for or dissatisfaction with results.");
+  assert.doesNotMatch(rule3Of(), /MUST|without asking|consent/i);
+});
+
+test("rule 3 (Trello configured, no TRELLO_AUTO_LIST_ID): no claim of automatic recording", () => {
+  withTrello();
+  const rule3 = rule3Of();
+  assert.doesNotMatch(rule3, /recorded automatically|_notice/);
+  assert.match(rule3, /^3\. Report: parse corrections/);
+  assert.match(rule3, /send-feedback \(nlp-misparse\)/);
+});
+
+test("FEEDBACK_CONSENT no longer changes the text", () => {
+  withTrello();
+  const before = buildServerInstructions();
+  process.env.FEEDBACK_CONSENT = "always-ask";
+  assert.equal(buildServerInstructions(), before);
+});
+
+test("rule 2 no longer mentions repairsNlpId", () => {
+  withTrello();
+  process.env.TRELLO_AUTO_LIST_ID = "a";
+  for (const text of [buildServerInstructions()]) {
+    assert.doesNotMatch(text, /repairsNlpId/);
+    assert.match(text, /restating the Search_Listings prompt emphatically\./);
+  }
+});
+
+test("full mode (auto capture on): the pre-change rules 2 and 3", () => {
+  withTrello();
+  process.env.TRELLO_AUTO_LIST_ID = "a";
+  process.env.FEEDBACK_AUTO_CAPTURE = "full";
+  const text = buildServerInstructions();
+  assert.match(text, /with the earlier search's nlpId as repairsNlpId/);
+  const rule3 = text.split("\n").find((line) => line.startsWith("3."));
+  assert.match(rule3, /failures the server observes \(API errors, refine-search corrections, discarded parameters, searches restated with repairsNlpId\) are recorded automatically/);
+  assert.match(rule3, /send-feedback covers what only the conversation shows/);
+  assert.doesNotMatch(rule3, /MUST|without asking|consent/i);
+});
+
+test("full mode without the auto list: no claim of automatic recording", () => {
+  withTrello();
+  process.env.FEEDBACK_AUTO_CAPTURE = "full";
+  const full = buildServerInstructions();
+  assert.doesNotMatch(full, /recorded automatically|repairsNlpId/);
+  delete process.env.FEEDBACK_AUTO_CAPTURE;
+  assert.equal(full, buildServerInstructions(), "effective mode is narrow: the narrow wording");
+});
+
+test("narrow is the default, and an unknown value means narrow", () => {
+  withTrello();
+  process.env.TRELLO_AUTO_LIST_ID = "a";
+  const narrow = buildServerInstructions();
+  process.env.FEEDBACK_AUTO_CAPTURE = "narrow";
+  assert.equal(buildServerInstructions(), narrow);
+  process.env.FEEDBACK_AUTO_CAPTURE = "banana";
+  assert.equal(buildServerInstructions(), narrow);
+  assert.doesNotMatch(narrow, /repairsNlpId/);
+});
+
+test("full mode without Trello: no send-feedback anywhere, headline unchanged", () => {
+  process.env.FEEDBACK_AUTO_CAPTURE = "full";
+  const text = buildServerInstructions();
+  assert.ok(!text.includes("send-feedback"));
+  assert.match(text.split("\n")[0], /^Required sequence/);
 });

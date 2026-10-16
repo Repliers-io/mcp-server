@@ -8,7 +8,9 @@
     "start": "node mcpServer.js",
     "start:http": "node mcpServer.js --http",
     "generate": "node codegen/generate.js",
+    "sync-spec": "node scripts/sync-spec.mjs",
     "list-tools": "node index.js tools",
+    "export:oss": "node scripts/internal/export-oss.mjs",
     "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {

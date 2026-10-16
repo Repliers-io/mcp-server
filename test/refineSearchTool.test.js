@@ -107,3 +107,44 @@ test("unknown patch args are ignored, not interpolated", async () => {
   await apiTool.function({ url: base, evilParam: "x", _repliersApiKey: "k" });
   assert.equal(fetched.searchParams.get("evilParam"), null);
 });
+
+// Each changed name can open a card, so a refine that changes nothing must not look like a
+// correction — otherwise one caller can exhaust the breaker with no-op removes (security S1).
+test("removing an absent parameter is no change and no constraint patch", async () => {
+  global.fetch = async () => new Response('{"count":1,"listings":[]}', { status: 200 });
+  const result = await apiTool.function({ url: base, remove: ["class", "maxPrice"], _repliersApiKey: "k" });
+  assert.deepEqual(result.changed, { set: {}, remove: [] });
+  assert.equal(result.constraintPatch, false);
+});
+
+test("setting a parameter to the value it already has is no change", async () => {
+  global.fetch = async () => new Response('{"count":1,"listings":[]}', { status: 200 });
+  const same = await apiTool.function({ url: base, waterfront: "true", style: ["Semi-Detached"], _repliersApiKey: "k" });
+  assert.deepEqual(same.changed, { set: {}, remove: [] });
+  assert.equal(same.constraintPatch, false);
+  // minBedrooms displaces the minBeds alias; the same number under the canonical name is no change.
+  const alias = await apiTool.function({ url: base, minBedrooms: 5, _repliersApiKey: "k" });
+  assert.deepEqual(alias.changed.set, {});
+  assert.equal(alias.constraintPatch, false);
+  const changed = await apiTool.function({ url: base, minBedrooms: 4, _repliersApiKey: "k" });
+  assert.deepEqual(changed.changed.set, { minBedrooms: 4 });
+  assert.equal(changed.constraintPatch, true);
+});
+
+test("a parameter set and removed in one call counts once, as a removal, and only if it was there", async () => {
+  global.fetch = async () => new Response('{"count":1,"listings":[]}', { status: 200 });
+  const present = await apiTool.function({ url: base, style: "Detached", remove: ["style"], _repliersApiKey: "k" });
+  assert.deepEqual(present.changed, { set: {}, remove: ["style"] });
+  const absent = await apiTool.function({ url: base, maxPrice: 500000, remove: ["maxPrice"], _repliersApiKey: "k" });
+  assert.deepEqual(absent.changed, { set: {}, remove: [] });
+  assert.equal(absent.constraintPatch, false);
+});
+
+// autoReport keys a refine correction on what was changed; it must not re-derive that from URLs.
+test("a successful refine reports which parameters it set and removed", async () => {
+  global.fetch = async () => new Response('{"count":1,"listings":[]}', { status: 200 });
+  const result = await apiTool.function({
+    url: "https://api.repliers.io/listings?class=condo&city=Toronto", status: "A", remove: ["class"], _repliersApiKey: "k",
+  });
+  assert.deepEqual(result.changed, { set: { status: "A" }, remove: ["class"] });
+});

@@ -2,44 +2,50 @@
 // Source: GET /agents (operationId: find-agents)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/agents`);
 
-  if (args.agentId !== undefined) url.searchParams.set('agentId', String(args.agentId));
-  if (args.boardId !== undefined) url.searchParams.set('boardId', String(args.boardId));
-  if (args.brokerage !== undefined) url.searchParams.set('brokerage', String(args.brokerage));
-  if (args.designation !== undefined) url.searchParams.set('designation', String(args.designation));
-  if (args.email !== undefined) url.searchParams.set('email', String(args.email));
-  if (args.fname !== undefined) url.searchParams.set('fname', String(args.fname));
-  if (args.lname !== undefined) url.searchParams.set('lname', String(args.lname));
-  if (args.phone !== undefined) url.searchParams.set('phone', String(args.phone));
-  if (args.status !== undefined) url.searchParams.set('status', String(args.status));
-  if (args.externalId !== undefined) url.searchParams.set('externalId', String(args.externalId));
+  if (args.agentId != null) url.searchParams.set('agentId', String(args.agentId));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
+  if (args.brokerage != null) url.searchParams.set('brokerage', String(args.brokerage));
+  if (args.designation != null) url.searchParams.set('designation', String(args.designation));
+  if (args.email != null) url.searchParams.set('email', String(args.email));
+  if (args.fname != null) url.searchParams.set('fname', String(args.fname));
+  if (args.lname != null) url.searchParams.set('lname', String(args.lname));
+  if (args.phone != null) url.searchParams.set('phone', String(args.phone));
+  if (args.status != null) url.searchParams.set('status', String(args.status));
+  if (args.externalId != null) url.searchParams.set('externalId', String(args.externalId));
 
   const finalUrl = url.toString();
 
   try {
     const response = await fetch(finalUrl, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -84,8 +90,7 @@ export const apiTool = {
             "description": "Filters agents by last name."
           },
           "phone": {
-            "type": "integer",
-            "format": "int32",
+            "type": "string",
             "description": "Filters agents by phone number."
           },
           "status": {
