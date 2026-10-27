@@ -2,37 +2,45 @@
 // Source: GET /offices (operationId: offices)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/offices`);
 
-  if (args.officeId !== undefined) url.searchParams.set('officeId', String(args.officeId));
-  if (args.keywords !== undefined) url.searchParams.set('keywords', String(args.keywords));
-  if (args.boardId !== undefined) url.searchParams.set('boardId', String(args.boardId));
+  if (args.pageNum != null) url.searchParams.set('pageNum', String(args.pageNum));
+  if (args.resultsPerPage != null) url.searchParams.set('resultsPerPage', String(args.resultsPerPage));
+  if (args.officeId != null) [args.officeId].flat().forEach(v => url.searchParams.append('officeId', String(v)));
+  if (args.keywords != null) url.searchParams.set('keywords', String(args.keywords));
+  if (args.boardId != null) url.searchParams.set('boardId', String(args.boardId));
 
   const finalUrl = url.toString();
 
   try {
     const response = await fetch(finalUrl, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -42,13 +50,29 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "search-offices",
-      description: "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members. If results look wrong or incomplete — see send-feedback.",
+      description: "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members.",
       parameters: {
         type: 'object',
         properties: {
+          "pageNum": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number for paginated results."
+          },
+          "resultsPerPage": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 100,
+            "description": "Number of results to return per page."
+          },
           "officeId": {
-            "type": "string",
-            "description": "If supplied, finds office by officeId using exact match criteria."
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "description": "If supplied, finds offices by officeId using exact (case-insensitive) match criteria. Repeat the parameter to supply multiple values."
           },
           "keywords": {
             "type": "string",
@@ -56,7 +80,7 @@ export const apiTool = {
           },
           "boardId": {
             "type": "string",
-            "description": "Find your boardId by visiting https://login.repliers.com/dashboard/data-access"
+            "description": "Filters offices by MLS board. Required if your API key has access to more than one MLS board. Find your boardId by visiting https://login.repliers.com/dashboard/data-access"
           }
         },
         required: [],

@@ -1,3 +1,4 @@
+import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 /**
  * Function to download a listing's photo from the Repliers API.
  *
@@ -12,13 +13,12 @@
  */
 const executeFunction = async (args) => {
   const baseUrl = "https://dev.repliers.io";
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   const mlsNumber = args.mlsNumber;
   const imageNumber = args.imageNumber || 1;
   let finalUrl;
 
   try {
-    const headers = { "REPLIERS-API-KEY": apiKey };
+    const headers = apiHeaders(args, { accept: null });
 
     const url = new URL(
       `${baseUrl}/listings/${encodeURIComponent(mlsNumber)}/images/download/${encodeURIComponent(imageNumber)}`
@@ -31,9 +31,13 @@ const executeFunction = async (args) => {
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to download image ${imageNumber} for listing ${mlsNumber}: ${response.status} ${response.statusText}`
-      );
+      const { status, body } = await readFailure(response);
+      return {
+        url: finalUrl,
+        error: errorMessage(body) || `Failed to download image ${imageNumber} for listing ${mlsNumber}: HTTP ${status}`,
+        status,
+        body,
+      };
     }
 
     const mimeType = response.headers.get("content-type") || "image/jpeg";
@@ -48,11 +52,7 @@ const executeFunction = async (args) => {
       },
     };
   } catch (error) {
-    return {
-      error: "An error occurred while downloading the listing image.",
-      details: error.message,
-      url: finalUrl,
-    };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 

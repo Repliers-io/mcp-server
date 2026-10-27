@@ -16,28 +16,23 @@
   },
   "find-similar-listings": {
     "name": "get-similar-listings",
-    "description": "Return listings similar to a given mlsNumber by price range, type, and location proximity. Use to power a \"similar homes\" or \"you may also like\" section on a listing detail page. Key params: mlsNumber (required), boardId, listPriceRange, radius, sortBy. NOT a general search — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+    "description": "Return listings similar to a given mlsNumber by price range, type, and location proximity. Use to power a \"similar homes\" or \"you may also like\" section on a listing detail page. Key params: mlsNumber (required), boardId, listPriceRange, radius, sortBy. NOT a general search — use Search_Listings."
   },
   "lookup-address-history": {
     "name": "get-address-listing-history",
-    "description": "Retrieve all historical MLS listings for a specific address (sold, expired, cancelled cycles). Use to show a property's full MLS history. Key params: streetNumber, streetName, city (or mlsNumber / addressKey for a known listing). NOT for searching listings by criteria — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+    "description": "Retrieve all historical MLS listings for a specific address (sold, expired, cancelled cycles). Use to show a property's full MLS history. Key params: streetNumber, streetName, city (or mlsNumber / addressKey for a known listing). NOT for searching listings by criteria — use Search_Listings."
   },
   "get-deleted-listings": {
     "name": "get-deleted-listings",
-    "description": "Return listings removed from the MLS feed since a given timestamp. Use for data-sync pipelines to detect deletions and keep a local dataset current. Key params: updatedOn (timestamp cutoff), boardId. NOT intended for property browsing — use Search_Listings for that. If results look wrong or incomplete — see send-feedback."
+    "description": "Return listings removed from the MLS feed since a given timestamp. Use for data-sync pipelines to detect deletions and keep a local dataset current. Key params: updatedOn (timestamp cutoff), boardId. NOT intended for property browsing — use Search_Listings for that."
   },
-  "locations": {
-    "name": "get-listing-areas-and-cities",
-    "description": "Return the area/city/neighborhood hierarchy derived from active listings data. Use to populate location filter dropdowns or navigation menus with values that actually exist in listings. No key params required; results reflect the connected board's data. NOT for resolving a place name to a locationId — use search-locations or autocomplete-location-search. If results look wrong or incomplete — see send-feedback."
-  },
-
   "GET /locations": {
     "name": "search-locations",
-    "description": "Search locations (areas, cities, neighborhoods, postal codes, school districts…) by name or filters; returns names, types, coordinates and locationId. Use to resolve a place the user named into a locationId or to explore what areas exist. Key params: search (text), type[] (area|city|neighborhood|postalCode|district|schoolDistrict|school), city[], area[], resultsPerPage. NOT for listing searches — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+    "description": "Search locations (areas, cities, neighborhoods, postal codes, school districts…) by name or filters; returns names, types, coordinates and locationId. Use to resolve a place the user named into a locationId or to explore what areas exist. Key params: name[] (place name), type[] (area|city|neighborhood|postalCode|district|schoolDistrict|school), city[], area[], resultsPerPage. NOT for listing searches — use Search_Listings."
   },
   "GET /locations/autocomplete": {
     "name": "autocomplete-location-search",
-    "description": "Type-ahead location matching: pass the user's partial input in search (min 3 chars) and get matching areas/cities/neighborhoods with locationId. Use for resolving ambiguous or misspelled place names quickly; filter with type[] to narrow. NOT for property/listing lookups — use Search_Listings. If results look wrong or incomplete — see send-feedback.",
+    "description": "Type-ahead location matching: pass the user's partial input in search (min 3 chars) and get matching areas/cities/neighborhoods with locationId. Use for resolving ambiguous or misspelled place names quickly; filter with type[] to narrow. NOT for property/listing lookups — use Search_Listings.",
     "parameterDescriptions": {
       "resultsPerPage": "The number of locations to return per page. Accepts 1-10 only, default 10 — this endpoint caps far lower than the other search tools, and a larger value is rejected by the API."
     }
@@ -45,23 +40,19 @@
 
   "brokerages": {
     "name": "search-brokerages",
-    "description": "List all brokerages registered with the MLS on the connected account. Use to build a brokerage directory or populate a brokerage filter dropdown. No filter params available — returns the full list. NOT for searching individual agents or offices — use search-members or search-offices. If results look wrong or incomplete — see send-feedback."
+    "description": "List all brokerages registered with the MLS on the connected account. Use to build a brokerage directory or populate a brokerage filter dropdown. No filter params available — returns the full list. NOT for searching individual agents or offices — use search-members or search-offices."
   },
   "offices": {
     "name": "search-offices",
-    "description": "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members. If results look wrong or incomplete — see send-feedback."
+    "description": "List and filter offices (branches) belonging to the MLS on the connected account. Use to look up an office by keyword or ID. Key params: officeId, keywords, boardId. NOT for individual agent lookup — use search-members."
   },
   "members": {
     "name": "search-members",
-    "description": "List and filter MLS member agents on the connected account. Use to look up an agent by name, brokerage, or office. Key params: agentName, brokerage, officeId, keywords, boardId, position, resultsPerPage. NOT for CRM agents — use search-agents. If results look wrong or incomplete — see send-feedback."
-  },
-  "buildings": {
-    "name": "search-listing-buildings",
-    "description": "Search condo and apartment buildings referenced by listings on the connected account. Use to find a building by name, address, or location and retrieve its addressKey. Key params: buildingName, streetNumber, streetName, city, area, neighborhood, lat/long/radius, map. NOT for listing searches — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+    "description": "List and filter MLS member agents on the connected account. Use to look up an agent by name, brokerage, or office. Key params: agentName, brokerage, officeId, keywords, boardId, position, resultsPerPage. NOT for CRM agents — use search-agents."
   },
   "places": {
     "name": "search-places",
-    "description": "Find points of interest (restaurants, schools, transit stops, etc.) near a location. Use to enrich a listing detail page with nearby amenities. Key params: lat, long, radius, type. NOT for MLS listings — use Search_Listings. If results look wrong or incomplete — see send-feedback."
+    "description": "Find points of interest (restaurants, schools, transit stops, etc.) near a location. Use to enrich a listing detail page with nearby amenities. Key params: lat, long, radius, type. NOT for MLS listings — use Search_Listings."
   },
 
   "find-agents": {
@@ -154,7 +145,7 @@
   },
   "create-an-estimate": {
     "name": "create-estimate",
-    "description": "Create a property value estimate for a client by submitting property attributes. More attributes = more accurate result. Key params: clientId, address (required), details (beds, baths, sqft, etc.), overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly. Operates on the connected account's CRM data.",
+    "description": "Create a property value estimate for a client by submitting property attributes. More attributes = more accurate result. Key params: clientId, address (required), details (required: beds, baths, sqft, etc.), overallQuality, lot, condominium, taxes, sendEmailNow, sendEmailMonthly. Operates on the connected account's CRM data.",
     "additionalContext": "Before submitting, present all inputs to the user for review and confirmation. Details like bedroom count, property tax, or lot size directly influence the valuation — the user should verify them before proceeding.\n\nCollect as many property attributes as possible. The more fields provided, the more accurate the estimate. Prompt the user for missing fields if they're readily available.\n\nAfter receiving the response, interpret the confidence score for the user:\n- Below 0.05: Excellent — strong comparable data available\n- 0.05 to 0.10: Good — reasonable confidence\n- Above 0.10: Low confidence — limited comparable data. This may indicate that some home facts are inaccurate or that the property type is uncommon in the area. Suggest the user review the inputs."
   },
   "create-an-estimate-copy": {
@@ -172,7 +163,7 @@
   },
   "send-a-message": {
     "name": "send-message",
-    "description": "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (object with message/subject/listings sub-fields). Operates on the connected account's CRM data."
+    "description": "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (required; object with message/subject/listings sub-fields). Operates on the connected account's CRM data."
   },
   "get-a-message": {
     "name": "get-message",

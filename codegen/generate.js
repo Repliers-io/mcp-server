@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlink
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { defaultApiBaseUrl } from '../lib/apiBase.js';
+import { resolveParam, resolveSchema } from './refs.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -35,36 +36,6 @@ if (specBaseUrl !== defaultApiBaseUrl) {
 // Ensure output directory exists
 const outputDir = resolve(root, config.outputDir);
 mkdirSync(outputDir, { recursive: true });
-
-// Resolve a $ref within the spec (handles JSON Pointer encoding: ~1 = /, ~0 = ~)
-function resolveRef(ref, spec) {
-  const parts = ref.replace(/^#\//, '').split('/').map(k => k.replace(/~1/g, '/').replace(/~0/g, '~'));
-  return parts.reduce((obj, key) => Array.isArray(obj) ? obj[Number(key)] : obj?.[key], spec);
-}
-
-// Recursively resolve $refs in a schema object
-function resolveSchema(schema, spec) {
-  if (!schema) return {};
-  if (schema.$ref) return resolveSchema(resolveRef(schema.$ref, spec), spec);
-
-  const out = { ...schema };
-  if (out.properties) {
-    out.properties = Object.fromEntries(
-      Object.entries(out.properties).map(([k, v]) => [k, resolveSchema(v, spec)])
-    );
-  }
-  if (out.items) out.items = resolveSchema(out.items, spec);
-  if (out.allOf) out.allOf = out.allOf.map(s => resolveSchema(s, spec));
-  if (out.oneOf) out.oneOf = out.oneOf.map(s => resolveSchema(s, spec));
-  delete out.$ref;
-  return out;
-}
-
-// Resolve a parameter that may itself be a $ref
-function resolveParam(param, spec) {
-  if (param.$ref) return resolveParam(resolveRef(param.$ref, spec), spec);
-  return { ...param, schema: resolveSchema(param.schema, spec) };
-}
 
 // Derive a kebab-case filename from an operationId
 function toFilename(operationId, method, path) {
@@ -184,10 +155,14 @@ function generateToolFile(method, urlPath, operation, spec, override, docText) {
   if (queryParams.length > 0) {
     urlLines += '\n';
     for (const p of queryParams) {
+      // `!= null` skips null as well as undefined: a query string has no null, and strict function
+      // calling fills unused optional fields with null.
       if (p.schema?.type === 'array') {
-        urlLines += `  if (args.${p.name} !== undefined) args.${p.name}.forEach(v => url.searchParams.append('${p.name}', String(v)));\n`;
+        // [x].flat() also accepts a scalar: clients cache tool schemas, and a parameter the spec
+        // turned from string into array keeps arriving as a string until they rescan.
+        urlLines += `  if (args.${p.name} != null) [args.${p.name}].flat().forEach(v => url.searchParams.append('${p.name}', String(v)));\n`;
       } else {
-        urlLines += `  if (args.${p.name} !== undefined) url.searchParams.set('${p.name}', String(args.${p.name}));\n`;
+        urlLines += `  if (args.${p.name} != null) url.searchParams.set('${p.name}', String(args.${p.name}));\n`;
       }
     }
   }
@@ -202,22 +177,27 @@ function generateToolFile(method, urlPath, operation, spec, override, docText) {
   let bodyLines = '';
   if (hasBody) {
     bodyLines = `\n  const body = {};\n`;
-    for (const key of Object.keys(bodyProperties)) {
-      bodyLines += `  if (args.${key} !== undefined) body.${key} = args.${key};\n`;
+    for (const [key, schema] of Object.entries(bodyProperties)) {
+      // A scalar for an array property is wrapped, for the same cached-schema reason as query
+      // arrays — but not flattened (polygon-style nested arrays are real), and null passes through
+      // untouched, because on PATCH it is how a caller clears a field.
+      const value = schema?.type === 'array'
+        ? `args.${key} === null || Array.isArray(args.${key}) ? args.${key} : [args.${key}]`
+        : `args.${key}`;
+      bodyLines += `  if (args.${key} !== undefined) body.${key} = ${value};\n`;
     }
   }
 
-  const contentTypeHeader = hasBody ? `\n      'Content-Type': 'application/json',` : '';
   const fetchBody = hasBody ? `,\n      body: JSON.stringify(body)` : '';
 
   return `// AUTO-GENERATED — run \`npm run generate\` to regenerate
 // Source: ${method.toUpperCase()} ${urlPath} (operationId: ${operationId})
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
 ${urlLines}${bodyLines}
   const finalUrl = url.toString();
@@ -225,21 +205,27 @@ ${urlLines}${bodyLines}
   try {
     const response = await fetch(finalUrl, {
       method: '${method.toUpperCase()}',
-      headers: {
-        Accept: 'application/json',${contentTypeHeader}
-        'REPLIERS-API-KEY': apiKey,
-      }${fetchBody},
+      headers: apiHeaders(args${hasBody ? ', { json: true }' : ''})${fetchBody},
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || \`HTTP \${status}\`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 

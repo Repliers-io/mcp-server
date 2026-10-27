@@ -8,13 +8,16 @@
     "start": "node mcpServer.js",
     "start:http": "node mcpServer.js --http",
     "generate": "node codegen/generate.js",
+    "sync-spec": "node scripts/sync-spec.mjs",
     "list-tools": "node index.js tools",
+    "export:oss": "node scripts/internal/export-oss.mjs",
     "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
     "commander": "^13.1.0",
-    "express": "5.2.1"
+    "express": "5.2.1",
+    "zod": "4.4.3"
   },
   "engines": {
     "node": "^v26.8.x",

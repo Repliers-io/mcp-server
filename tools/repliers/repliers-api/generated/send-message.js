@@ -2,10 +2,10 @@
 // Source: POST /messages (operationId: send-a-message)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/messages`);
 
@@ -20,23 +20,28 @@ const executeFunction = async (args) => {
   try {
     const response = await fetch(finalUrl, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-      'Content-Type': 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args, { json: true }),
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -46,13 +51,17 @@ export const apiTool = {
     type: 'function',
     function: {
       name: "send-message",
-      description: "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (object with message/subject/listings sub-fields). Operates on the connected account's CRM data.",
+      description: "Send a message from an agent to a client (or vice versa) on the connected account. Key params: sender (agent|client, required), agentId (required), clientId (required), content (required; object with message/subject/listings sub-fields). Operates on the connected account's CRM data.",
       parameters: {
         type: 'object',
         properties: {
           "sender": {
             "type": "string",
-            "description": "Indicates whether the agent is sending the message or the client.<br/><br/>Allowed values:<br/><br/><code>agent</code>,<code>client</code>"
+            "description": "Indicates whether the agent is sending the message or the client.<br/><br/>Allowed values:<br/><br/><code>agent</code>,<code>client</code>",
+            "enum": [
+              "agent",
+              "client"
+            ]
           },
           "agentId": {
             "type": "integer",
@@ -61,7 +70,7 @@ export const apiTool = {
           },
           "clientId": {
             "type": "integer",
-            "description": "The clientId of the client that's either receiving or sending the message.",
+            "description": "The clientId of the client that's either receiving or sending the message. The client must be assigned to the agent specified by <code>agentId</code>, otherwise a 400 error is returned.",
             "format": "int32"
           },
           "content": {
@@ -87,7 +96,8 @@ export const apiTool = {
               },
               "subject": {
                 "type": "string",
-                "description": "If specified, changes the email subject from the default"
+                "maxLength": 100,
+                "description": "If specified, changes the email subject from the default. Maximum 100 characters."
               },
               "links": {
                 "type": "array",
@@ -104,12 +114,14 @@ export const apiTool = {
                 }
               }
             },
-            "required": [],
+            "required": [
+              "message"
+            ],
             "type": "object",
             "description": ""
           }
         },
-        required: ["sender","agentId","clientId"],
+        required: ["sender","agentId","clientId","content"],
       },
     },
   },

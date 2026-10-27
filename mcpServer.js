@@ -13,9 +13,12 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { discoverTools, toolAnnotations } from "./lib/tools.js";
-import { augmentResult } from "./lib/feedbackHints.js";
+import { callTool, createSessionState } from "./lib/toolCall.js";
+import { autoCaptureNotice } from "./lib/autoReport.js";
+import { userAgent } from "./lib/apiRequest.js";
 import { buildServerInstructions } from "./lib/serverInstructions.js";
-import { apiBaseUrl } from "./lib/apiBase.js";
+import { loadSkills } from "./lib/skills.js";
+import { registerSkillHandlers, serverCapabilities } from "./lib/skillHandlers.js";
 import { createIntrospectionVerifier } from "./lib/oauthVerifier.js";
 import { createKeyResolver } from "./lib/repliersKey.js";
 import {
@@ -156,8 +159,16 @@ async function transformTools(tools) {
     .filter(Boolean);
 }
 
+// Read once: the skill files ship in the deployed slug and never change while the process runs.
+const skills = loadSkills(path.join(__dirname, "skills"));
+console.error(`[DEBUG] ${skills.length} skill(s) loaded: ${skills.map((s) => s.entry.uri).join(", ") || "none"}`);
+
 async function setupServerHandlers(server, tools) {
   console.error("[DEBUG] Setting up server handlers");
+
+  // skills/list, skills/get, resources/list|read. On HTTP these run behind the same auth chain as
+  // the tools, because they are registered on the same per-session Server.
+  registerSkillHandlers(server, skills);
 
   // List tools handler. Every authenticated caller sees the whole roster: a token that opens
   // the server can call anything on it.
@@ -165,95 +176,31 @@ async function setupServerHandlers(server, tools) {
     return { tools: await transformTools(tools) };
   });
 
-  // Call tool handler
+  // Per-session state: the capture quota.
+  const session = createSessionState();
+
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const toolName = request.params.name;
     console.error(`[DEBUG] Tool call requested: ${toolName}`);
-
     const tool = tools.find((t) => t.definition.function.name === toolName);
-
     if (!tool) {
       console.error(`[ERROR] Tool not found: ${toolName}`);
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
     }
-
-    const args = request.params.arguments;
-    const requiredParameters =
-      tool.definition?.function?.parameters?.required || [];
-
-    for (const requiredParameter of requiredParameters) {
-      if (!(requiredParameter in args)) {
-        console.error(`[ERROR] Missing parameter: ${requiredParameter}`);
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Missing required parameter: ${requiredParameter}`
-        );
-      }
-    }
-
     // The Repliers key is resolved per request, from the identity verifyOAuthToken proved
     // for this very call, rather than captured when the session was opened. A key that is
     // rotated or revoked upstream therefore takes effect on the next call instead of living
     // on for the lifetime of the session. Absent in self-hosted and stdio mode, where there
     // is no per-user identity and the environment key is the only one.
-    const repliersApiKey =
-      extra?.authInfo?.extra?.repliersApiKey ?? process.env.REPLIERS_API_KEY;
-
-    try {
-      const result = await tool.function({ ...args, _repliersApiKey: repliersApiKey });
-
-      if (result.image) {
-        return {
-          content: [
-            {
-              type: "image",
-              data: result.image.data,
-              mimeType: result.image.mimeType,
-            },
-          ],
-        };
-      }
-
-      augmentResult(toolName, result);
-
-      const apiEndpoint = result.url || `${apiBaseUrl()}/${toolName}`;
-
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              `🔗 **API Endpoint Used**\n` +
-              "```\n" +
-              `${apiEndpoint}\n` +
-              "```\n",
-          },
-          {
-            type: "text",
-            text:
-              typeof result.data === "string"
-                ? result.data
-                : JSON.stringify(result.data || result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const apiEndpoint = `${apiBaseUrl()}/${toolName}`;
-
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              `🔗 **API Endpoint Used**\n` +
-              "```\n" +
-              `${apiEndpoint}\n` +
-              "```\n\n" +
-              `❌ **Error**\n${error.message}`,
-          },
-        ],
-      };
-    }
+    const repliersApiKey = extra?.authInfo?.extra?.repliersApiKey ?? process.env.REPLIERS_API_KEY;
+    return callTool({
+      tool,
+      toolName,
+      args: request.params.arguments,
+      repliersApiKey,
+      userAgent: userAgent(server.getClientVersion()),
+      session,
+    });
   });
 
   console.error("[DEBUG] Server handlers set up successfully");
@@ -262,6 +209,11 @@ async function setupServerHandlers(server, tools) {
 async function run() {
   try {
     console.error("[DEBUG] Starting run function");
+    if (process.env.FEEDBACK_CONSENT) {
+      console.error("[CONFIG] FEEDBACK_CONSENT is no longer used: server-observed failures are recorded automatically, and send-feedback is sent when the user asks and offered when they are dissatisfied (docs/feedback-v2/design.md §7.4).");
+    }
+    const autoNotice = autoCaptureNotice();
+    if (autoNotice) console.error(autoNotice);
     const args = process.argv.slice(2);
     const isSSE = args.includes("--http") || args.includes("--sse");
 
@@ -504,7 +456,7 @@ async function run() {
 
           const server = new Server(
             serverImplementation(),
-            { capabilities: { tools: {} }, instructions: buildServerInstructions() }
+            { capabilities: serverCapabilities(), instructions: buildServerInstructions() }
           );
           server.onerror = (error) => {
             if (clientFaults.has(error)) {
@@ -590,9 +542,7 @@ async function run() {
       const server = new Server(
         serverImplementation(),
         {
-          capabilities: {
-            tools: {},
-          },
+          capabilities: serverCapabilities(),
           instructions: buildServerInstructions(),
         }
       );

@@ -1,3 +1,5 @@
+import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { effectiveCaptureMode } from "../../../../lib/trello.js";
 import { apiBaseUrl, apiOrigin } from "../../../../lib/apiBase.js";
 import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
 
@@ -18,11 +20,10 @@ const aliases = { minBedrooms: ["minBeds"], maxBedrooms: ["maxBeds"] };
 
 const removablePattern = /^[A-Za-z0-9]{1,40}$/;
 
-// Patching only these does not imply an NLP misparse — no refined-signal nudge.
+// Patching only these does not imply an NLP misparse.
 const presentationParams = new Set(["resultsPerPage", "pageNum", "sortBy", "fields"]);
 
 const executeFunction = async (args) => {
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
   let url;
   try {
     url = new URL(args.url);
@@ -34,36 +35,48 @@ const executeFunction = async (args) => {
   if (url.origin !== apiOrigin() || !url.pathname.startsWith("/listings")) {
     return { error: `url must point at ${apiBaseUrl()}/listings — pass request.url from the Search_Listings response.` };
   }
+  // `changed` lists only what this call actually changed: every changed name can open a card, so a
+  // no-op set or a remove of an absent param must not count (one caller could exhaust the breaker).
+  const original = new URLSearchParams(url.searchParams);
+  const valuesOf = (params, name) =>
+    [...new Set([name, ...(aliases[name] || [])].flatMap((key) => params.getAll(key)))].sort();
+  const removeNames = (args.remove || []).filter((name) => removablePattern.test(name));
+  const set = {};
   for (const name of patchParams) {
     const value = args[name];
     if (value === undefined || value === null) continue;
+    const next = [...new Set([value].flat().map(String))].sort();
+    const before = valuesOf(original, name);
     url.searchParams.delete(name);
     for (const v of [value].flat()) url.searchParams.append(name, String(v));
     for (const alias of aliases[name] || []) url.searchParams.delete(alias);
+    // A value the remove step deletes again never reaches the URL.
+    if (!removeNames.includes(name) && next.join("\n") !== before.join("\n")) set[name] = value;
   }
-  // Remove runs last: when the same param is both set and removed in one call, remove wins.
-  for (const name of args.remove || []) {
-    if (removablePattern.test(name)) url.searchParams.delete(name);
+  // Remove runs last: when the same param is both set and removed in one call, remove wins. It
+  // counts only for a param the original URL carried and that is still there to delete.
+  const remove = [];
+  for (const name of removeNames) {
+    if (url.searchParams.has(name) && original.has(name) && !remove.includes(name)) remove.push(name);
+    url.searchParams.delete(name);
   }
   const finalUrl = url.toString();
-  const changed = [
-    ...patchParams.filter((name) => args[name] !== undefined && args[name] !== null),
-    ...(args.remove || []),
-  ];
-  const constraintPatch = changed.some((name) => !presentationParams.has(name));
+  const constraintPatch = [...Object.keys(set), ...remove].some((name) => !presentationParams.has(name));
   try {
-    const response = await fetch(finalUrl, {
-      headers: { Accept: "application/json", "REPLIERS-API-KEY": apiKey },
-    });
-    if (!response.ok) throw new Error(JSON.stringify(await response.json()));
+    const response = await fetch(finalUrl, { headers: apiHeaders(args) });
+    if (!response.ok) {
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
+    }
     const data = await response.json();
     return {
       url: finalUrl,
       constraintPatch,
+      changed: { set, remove },
       data: { appliedFilters: parseAppliedFilters(finalUrl, data.unrecognizedParams), ...data },
     };
   } catch (error) {
-    return { error: "refine-search request failed.", details: error.message, url: finalUrl };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -74,11 +87,16 @@ const multiSchema = (description) => ({
   description,
 });
 
+// Read at import: a FEEDBACK_AUTO_CAPTURE change needs a restart. Narrow says nothing about recording.
+const recording = effectiveCaptureMode() === "full"
+  ? " Each call that changes a filter is recorded for the Repliers team as a probable NLP parse gap."
+  : "";
+
 const definition = {
   type: "function",
   function: {
     name: "refine-search",
-    description: `Surgically correct a previous Search_Listings result whose appliedFilters did not match the user's stated constraints. Takes request.url from that response, changes ONLY the parameters you name (everything else — including filters you don't understand — passes through verbatim), re-runs the search, and returns listings with a fresh appliedFilters block. NOT a general search tool: new searches always go through Search_Listings; this tool requires a prior request.url. Not applicable when the previous response had complexQuery=true — restate the Search_Listings prompt instead. For propertyType/style use exact board vocabulary — verify via Lookup_Possible_Values (aggregates=details.propertyType,details.style) if unsure. Every refine is proof the original parse missed constraints: you MUST follow it with send-feedback (category nlp-misparse, missedConstraints) — the task is unfinished until both the corrected results and the report are delivered.`,
+    description: `Corrects a previous Search_Listings result whose appliedFilters did not match the user's stated constraints. Takes request.url from that response, changes only the parameters named (everything else — including filters not understood — passes through verbatim), re-runs the search, and returns listings with a fresh appliedFilters block. Requires a prior request.url: new searches go through Search_Listings. Not applicable when the previous response had complexQuery=true; a restated Search_Listings prompt covers that case. propertyType and style take exact board vocabulary, listed by Lookup_Possible_Values (aggregates=details.propertyType,details.style).${recording}`,
     parameters: {
       type: "object",
       properties: {

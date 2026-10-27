@@ -2,10 +2,10 @@
 // Source: POST /clients (operationId: create-a-client)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
+import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
-  const apiKey = args._repliersApiKey || process.env.REPLIERS_API_KEY;
 
   const url = new URL(`${baseUrl}/clients`);
 
@@ -17,7 +17,7 @@ const executeFunction = async (args) => {
   if (args.email !== undefined) body.email = args.email;
   if (args.status !== undefined) body.status = args.status;
   if (args.preferences !== undefined) body.preferences = args.preferences;
-  if (args.tags !== undefined) body.tags = args.tags;
+  if (args.tags !== undefined) body.tags = args.tags === null || Array.isArray(args.tags) ? args.tags : [args.tags];
   if (args.externalId !== undefined) body.externalId = args.externalId;
 
   const finalUrl = url.toString();
@@ -25,23 +25,28 @@ const executeFunction = async (args) => {
   try {
     const response = await fetch(finalUrl, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-      'Content-Type': 'application/json',
-        'REPLIERS-API-KEY': apiKey,
-      },
+      headers: apiHeaders(args, { json: true }),
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(JSON.stringify(err));
+      const { status, body } = await readFailure(response);
+      return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
     }
 
-    const data = await response.json();
+    // A 2xx can carry no body (typical for DELETE) or a plain-text one; neither is a failure.
+    const text = await response.text();
+    let data = { ok: true };
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
     return { url: finalUrl, data };
   } catch (error) {
-    return { url: finalUrl, error: error.message };
+    return { url: finalUrl, error: error.message, status: null, body: null };
   }
 };
 
@@ -57,7 +62,7 @@ export const apiTool = {
         properties: {
           "agentId": {
             "type": "integer",
-            "description": "The agentId of the agent that this client is assigned to. Each client must be assigned to an agent.",
+            "description": "The agentId of the agent that this client is assigned to. Each client must be assigned to an agent. Must be an existing agent in your account, otherwise a 400 error is returned.",
             "format": "int32"
           },
           "fname": {
@@ -70,11 +75,11 @@ export const apiTool = {
           },
           "phone": {
             "type": "string",
-            "description": "The mobile phone number of this client (May be used to deliver text messages). Must be 11 digits in length.<br/><br/>Regex pattern: <code>^(1)([0-9]{10})$</code>"
+            "description": "The mobile phone number of this client (May be used to deliver text messages). Must be 11 digits in length. Required if <code>email</code> is not provided.<br/><br/>Regex pattern: <code>^(1)([0-9]{10})$</code>"
           },
           "email": {
             "type": "string",
-            "description": "The email address of this client (May be used to send emails).<br/><br/>Regex pattern: <code>^(([^<>()\\[\\]\\\\.,;:\\s@\"]+(\\.[^<>()\\[\\]\\\\.,;:\\s@\"]+)*)|(\".+\"))@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))</code>"
+            "description": "The email address of this client (May be used to send emails). Required if <code>phone</code> is not provided.<br/><br/>Regex pattern: <code>^(([^<>()\\[\\]\\\\.,;:\\s@\"]+(\\.[^<>()\\[\\]\\\\.,;:\\s@\"]+)*)|(\".+\"))@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))</code>"
           },
           "status": {
             "type": "boolean",
