@@ -148,12 +148,28 @@ export async function startFakePropelAuth(users = defaultUsers()) {
   };
 }
 
-/** Stands in for api.repliers.io, recording the REPLIERS-API-KEY each tool call arrives with. */
-export async function startFakeRepliersApi() {
+/**
+ * Stands in for api.repliers.io, recording the REPLIERS-API-KEY each tool call arrives with.
+ * Keys listed in `harKeys` have HAR enabled: GET /accounts answers their own account with
+ * configuration.partners.har, and /partners/har/* serves them. Every other key gets an account
+ * without HAR and the real API's 403 on those routes, so by default no session sees the HAR tools.
+ */
+export async function startFakeRepliersApi({ harKeys = [] } = {}) {
   const received = [];
   const server = http.createServer((req, res) => {
     const key = req.headers["repliers-api-key"] ?? null;
     received.push({ key, url: req.url });
+    if (req.url === "/accounts") {
+      const configuration = harKeys.includes(key) ? { partners: { har: { enabled: true, brokerCode: "B1" } } } : {};
+      return res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ accounts: [{ accountId: 1, apiSecret: key, configuration }] }));
+    }
+    if (req.url.startsWith("/partners/har/") && !harKeys.includes(key)) {
+      return res
+        .writeHead(403, { "content-type": "application/json" })
+        .end(JSON.stringify([{ msg: "This API key is not configured for HAR integration." }]));
+    }
     res
       .writeHead(200, { "content-type": "application/json" })
       .end(JSON.stringify({ receivedKey: key }));
@@ -305,6 +321,18 @@ export async function openSession(port, token) {
 }
 
 let nextId = 100;
+
+/** Issues a tools/list and returns { status, text, names }. */
+export async function listTools(port, { token, sessionId }) {
+  const res = await mcpFetch(port, {
+    token,
+    sessionId,
+    body: { jsonrpc: "2.0", id: nextId++, method: "tools/list", params: {} },
+  });
+  const text = await res.text();
+  const names = [...text.matchAll(/"name":"([^"]+)"/g)].map((m) => m[1]);
+  return { status: res.status, text, names };
+}
 
 /** Issues a tools/call and returns { status, text }. */
 export async function callTool(port, { token, sessionId, name, args = {} }) {

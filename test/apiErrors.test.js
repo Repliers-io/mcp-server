@@ -34,6 +34,13 @@ const cases = [
     { kind: "upstream", reason: "nlp", capture: true, retry: true }],
   ["other 4xx elsewhere", { toolName: "get-listing", url: listing, status: 409, body: { message: "conflict" } },
     { kind: "request", reason: "other", capture: false, retry: true }],
+  // realtime-api tests/integration/har/har.test.js, FOREIGN_AGENT_MSG.
+  ["agent-scoped HAR key naming another agent", { toolName: "get-har-listing-views", url: "https://api.repliers.io/partners/har/listings/views?boardAgentId=other",
+    status: 403, body: [{ msg: "This API key is configured for a specific agent and cannot be used to access other agents' data." }] },
+    { kind: "request", reason: "agent-scope", capture: false, retry: true }],
+  ["HAR not enabled on the key", { toolName: "get-har-listing-views", url: "https://api.repliers.io/partners/har/listings/views",
+    status: 403, body: [{ msg: "This API key is not configured for HAR integration." }] },
+    { kind: "account", reason: "feature", capture: false, retry: false }],
 ];
 
 for (const [name, input, want] of cases) {
@@ -51,6 +58,13 @@ test("account errors carry a user-facing text with the right dashboard link; not
   assert.match(feature.forUser, /does not include natural-language listing search/);
   assert.match(feature.forUser, /https:\/\/login\.repliers\.com\/dashboard\b/);
   assert.equal(classifyError(cases[8][1]).forUser, undefined);
+});
+
+// The agent can fix it by dropping the agent parameter; nothing for the account admin to do.
+test("an agent-scope refusal speaks to the agent only", () => {
+  const got = classifyError(cases.find(([name]) => name.startsWith("agent-scoped"))[1]);
+  assert.equal(got.forUser, undefined);
+  assert.match(got.forAgent, /own agent/);
 });
 
 test("a feature error on a non-NLP tool names the endpoint path", () => {
