@@ -1,0 +1,73 @@
+{
+  "id": "har",
+  "title": "HAR partner tools battery (8 queries)",
+  "source": "mcp-server-docs/content/har-partner/status.md (live check 2026-11-09); listing 20651899 and the counts in `expect` were measured that day",
+  "note": "Needs a broker-wide HAR key (partners.har.enabled + brokerCode, board 147 = HAR MLS). The battery carries no key: run the runner with REPLIERS_API_KEY set to that key in its environment, which wins over .env. Dates are relative to 2026-11-09; re-measure the counts before reusing them.",
+  "phases": {
+    "har": {
+      "FEEDBACK_DRY_RUN": "true",
+      "FEEDBACK_PROMPT_LEVEL": "high"
+    }
+  },
+  "queries": [
+    {
+      "id": "H1",
+      "group": "H",
+      "phase": "har",
+      "prompt": "How are our listings doing on HAR this week? Show me the 10 with the most online views.",
+      "expect": "get-har-listing-views with a ~7-day dateBegin/dateEnd. Rows are one listing per day (8,393 rows for 2-8 Nov), so a weekly top 10 needs the views summed per listing over every page, or an honest statement that it ranked single days or a partial sample. FAIL if one day's counts are presented as the week's"
+    },
+    {
+      "id": "H2",
+      "group": "H",
+      "phase": "har",
+      "chain": "H2",
+      "prompt": "Prepare a seller update for 17523 Spicewood Springs Lane in Spring: online views and showings over the last 30 days, and what buyers' agents said after the showings.",
+      "expect": "Resolves the address to MLS 20651899, then views and showings with that mlsNumber and a ~30-day range. For 10 Oct-8 Nov: 30 view-days, 246 web + 367 mobile views; 16 showings (statuses CONFM/CANCL/UNCFM, so not all took place), 4 with feedback. Feedback quoted or paraphrased only from feedbackText/saComments. FAIL if feedback is invented"
+    },
+    {
+      "id": "H3",
+      "group": "H",
+      "phase": "har",
+      "chain": "H2",
+      "followUp": true,
+      "prompt": "How does that compare with the 30 days before?",
+      "expect": "Same mlsNumber, the preceding 30-day window for both views and showings. For 10 Sep-9 Oct: 485 web + 589 mobile views, 23 showings, 7 with feedback; so this month is down on both. Numbers side by side"
+    },
+    {
+      "id": "H4",
+      "group": "H",
+      "phase": "har",
+      "prompt": "Which of our agents has the best client reviews this year? Only count agents with at least 5 reviews.",
+      "expect": "get-har-listing-reviews from 2026-01-01 (the filter is on createdDate). 778 reviews this year > one page (max 500): pages with offset or says the ranking covers part of them. Ranks by average score with review counts and the 5-review floor"
+    },
+    {
+      "id": "H5",
+      "group": "H",
+      "phase": "har",
+      "prompt": "Show me the five most recent client reviews with a score below 4, and what the clients said.",
+      "expect": "No review this year scores below 4 (this year's minimum is 4.0), and none of the latest 200 is below 4.75, so a recent-first scan finds nothing. Correct: sort by score (28 of 9,848 are below 4), then by date: the latest are 2.25 (created 2025-02-06), 3.75 (2025-01-17), 3.5 (2025-01-08), 3 (2024-11-01), 2 (2024-07-09); only 2.25 and 3 carry comments. PASS also for 'none below 4 recently' if it says how far back it looked. FAIL if a review >= 4 is shown as below 4, or comments are invented"
+    },
+    {
+      "id": "H6",
+      "group": "H",
+      "phase": "har",
+      "prompt": "How many showings did we have last week, and which listings got the most?",
+      "expect": "get-har-showings for 2-8 Nov: total 562 showings. Takes the count from total, not from the rows on one page; limit counts showings, so the per-listing ranking needs every page (562 > 500) or a stated sample. Does not confuse listings with showings"
+    },
+    {
+      "id": "H7",
+      "group": "H",
+      "phase": "har",
+      "prompt": "Any showing feedback this month that mentions price on our listings?",
+      "expect": "get-har-showings from 2026-11-01 (710 showings to 9 Nov, > one page), scans feedbackText/saComments for price, quotes only real mentions with their listing; pages or states coverage"
+    },
+    {
+      "id": "H8",
+      "group": "H",
+      "phase": "har",
+      "prompt": "How many online views did condos in downtown Toronto get last month?",
+      "expect": "Out of scope: HAR data covers HAR MLS (Houston) listings only, and this key's listings are Texas. Says so; does not call HAR tools with Toronto or quote numbers"
+    }
+  ]
+}
