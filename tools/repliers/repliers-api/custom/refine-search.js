@@ -2,6 +2,7 @@ import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiReques
 import { effectiveCaptureMode } from "../../../../lib/trello.js";
 import { apiBaseUrl, apiOrigin } from "../../../../lib/apiBase.js";
 import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
+import { LISTING_FIELDS, compactListings } from "../../../../lib/listingFields.js";
 
 // Curated allowlist — openapi.json POST /listings names. Only these are ever
 // written into the URL; everything else in the base query passes through.
@@ -63,7 +64,11 @@ const executeFunction = async (args) => {
   const finalUrl = url.toString();
   const constraintPatch = [...Object.keys(set), ...remove].some((name) => !presentationParams.has(name));
   try {
-    const response = await fetch(finalUrl, { headers: apiHeaders(args) });
+    // The card fields go to the API only: the returned url stays the caller's, so appliedFilters
+    // and the next refine read exactly what the model built, and a default is not a change.
+    const fetchUrl = new URL(finalUrl);
+    if (!fetchUrl.searchParams.has("fields")) fetchUrl.searchParams.set("fields", LISTING_FIELDS);
+    const response = await fetch(fetchUrl, { headers: apiHeaders(args) });
     if (!response.ok) {
       const { status, body } = await readFailure(response);
       return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
@@ -73,7 +78,7 @@ const executeFunction = async (args) => {
       url: finalUrl,
       constraintPatch,
       changed: { set, remove },
-      data: { appliedFilters: parseAppliedFilters(finalUrl, data.unrecognizedParams), ...data },
+      data: { appliedFilters: parseAppliedFilters(finalUrl, data.unrecognizedParams), ...compactListings(data) },
     };
   } catch (error) {
     return { url: finalUrl, error: error.message, status: null, body: null };
