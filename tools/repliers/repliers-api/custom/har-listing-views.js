@@ -20,7 +20,7 @@ export const apiTool = {
       parameters: {
         type: "object",
         properties: {
-          ...sharedProperties(SORT_COLUMNS, "dateTracked:desc"),
+          ...sharedProperties(SORT_COLUMNS, "dateTracked:desc", { dateColumn: "dateTracked (the day the views were counted)" }),
           boardAgentId: {
             type: "string",
             description: "HAR agent key of the listing agent; narrows the rows to that agent's listings. A key set up for one agent is already limited to that agent.",

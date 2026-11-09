@@ -24,14 +24,22 @@ const auth = { _repliersApiKey: "HAR-KEY", _userAgent: "ua/1" };
 
 const tools = [
   [views, "get-har-listing-views", "/partners/har/listings/views",
-    { boardAgentId: "jmeyer", sortBy: "dateTracked:desc" }],
+    { boardAgentId: "jmeyer", sortBy: "dateTracked:desc" }, "dateTracked"],
   [showings, "get-har-showings", "/partners/har/showingsmart/logs",
-    { listingBoardAgentId: "jmeyer", showingBoardAgentId: "BLUMCATH", brokerType: "Showing", sortBy: "showingDate:desc" }],
+    { listingBoardAgentId: "jmeyer", showingBoardAgentId: "BLUMCATH", brokerType: "Showing", sortBy: "showingDate:desc" }, "showingDate"],
   [reviews, "get-har-listing-reviews", "/partners/har/listings/reviews",
-    { boardAgentId: "jmeyer", sortBy: "score:desc" }],
+    { boardAgentId: "jmeyer", sortBy: "score:desc" }, "createdDate"],
 ];
 
-for (const [tool, name, route, own] of tools) {
+for (const [tool, name, route, own, dateColumn] of tools) {
+  // Measured against the live API 2026-11-09 (har-partner status.md): each route filters on one
+  // column, and for reviews it is not the closing date a model would guess.
+  test(`${name}: dateBegin/dateEnd name the column they filter on (${dateColumn})`, () => {
+    const { dateBegin, dateEnd } = tool.definition.function.parameters.properties;
+    assert.match(dateBegin.description, new RegExp(`\\b${dateColumn}\\b`));
+    assert.match(dateEnd.description, new RegExp(`\\b${dateColumn}\\b`));
+  });
+
   test(`${name}: gated on the har entitlement, read-only`, () => {
     assert.equal(tool.entitlement, "har");
     assert.equal(tool.definition.function.name, name);

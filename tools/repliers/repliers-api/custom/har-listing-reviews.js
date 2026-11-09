@@ -24,7 +24,7 @@ export const apiTool = {
       parameters: {
         type: "object",
         properties: {
-          ...sharedProperties(SORT_COLUMNS, "closedDate:desc"),
+          ...sharedProperties(SORT_COLUMNS, "closedDate:desc", { dateColumn: "createdDate (when the client submitted the review, not closedDate)" }),
           boardAgentId: {
             type: "string",
             description: "HAR agent key of the reviewed agent; narrows the ratings to that agent. A key set up for one agent is already limited to that agent.",

@@ -23,11 +23,12 @@ export const apiTool = {
         "Results are grouped per listing, with that listing's showings under logs, newest first unless sortBy says otherwise; " +
         "limit, offset and total count showings, not listings, so a page can hold fewer listings than limit and one listing's showings can continue on the next page. " +
         "Use for questions about showing activity or buyer-agent feedback on a listing or an agent's listings. " +
+        "A request with neither mlsNumber nor a date range can time out at HAR; a range of a few weeks returns in seconds. " +
         "Not for online views (get-har-listing-views) or client reviews (get-har-listing-reviews).",
       parameters: {
         type: "object",
         properties: {
-          ...sharedProperties(SORT_COLUMNS, "showingDate:desc", "Showings"),
+          ...sharedProperties(SORT_COLUMNS, "showingDate:desc", { rowNoun: "Showings", dateColumn: "showingDate" }),
           listingBoardAgentId: {
             type: "string",
             description:
