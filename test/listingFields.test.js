@@ -3,7 +3,7 @@
 // not read: query-battery-results.md run 11). The listing count is never cut.
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { LISTING_FIELDS, compactListings, slimRequest, trimAddress } from "../lib/listingFields.js";
+import { LISTING_FIELDS, compactListings, slimRequest, formatAddress } from "../lib/listingFields.js";
 import { apiTool as searchListings } from "../tools/repliers/repliers-api/custom/search-listings.js";
 import { apiTool as refineSearch } from "../tools/repliers/repliers-api/custom/refine-search.js";
 import { apiTool as harViews } from "../tools/repliers/repliers-api/custom/har-listing-views.js";
@@ -45,18 +45,36 @@ test("compactListings drops nulls and empty objects inside listings and keeps ev
   assert.equal(compactListings(undefined), undefined);
 });
 
+test("a listing's address is one line, its dates are days, and permissions appear only when restricted", () => {
+  const [open, restricted] = compactListings({ listings: [
+    { mlsNumber: "A", listDate: "2026-11-09T00:00:00.000Z", soldDate: "2026-10-01T04:00:00.000-00:00",
+      address: { unitNumber: "1203", streetNumber: "33", streetName: "University", streetSuffix: "Ave", neighborhood: "Waterfront Communities C1", city: "Toronto", state: "Ontario", zip: "M5J 2S7", area: "Toronto" },
+      permissions: { displayPublic: "Y", displayAddressOnInternet: "Y", displayInternetEntireListing: "Y" } },
+    { mlsNumber: "B", address: { streetNumber: "5", streetDirectionPrefix: "N", streetName: "Main", streetSuffix: "St", streetDirection: "E", city: "Spring", state: "TX", zip: "77379" },
+      permissions: { displayPublic: "Y", displayAddressOnInternet: "N" } },
+  ] }).listings;
+  assert.equal(open.address, "1203-33 University Ave, Waterfront Communities C1, Toronto, Ontario M5J 2S7");
+  assert.equal(open.listDate, "2026-11-09");
+  assert.equal(open.soldDate, "2026-10-01");
+  assert.equal(open.permissions, undefined, "all-Y permissions say nothing a listing does not already imply");
+  assert.equal(restricted.address, "5 N Main St E, Spring, TX 77379");
+  assert.deepEqual(restricted.permissions, { displayPublic: "Y", displayAddressOnInternet: "N" }, "a restriction is kept whole");
+});
+
 test("slimRequest drops the boundary polygons from resolved locations", () => {
   const out = slimRequest({ url: "u", summary: "s", locations: [{ locationId: "L1", name: "Toronto", type: "city", map: { boundary: [[[1, 2]]] }, address: { city: "Toronto" } }] });
   assert.deepEqual(out, { url: "u", summary: "s", locations: [{ locationId: "L1", name: "Toronto", type: "city", address: { city: "Toronto" } }] });
   assert.equal(slimRequest(null), null);
 });
 
-test("trimAddress keeps what a card prints and drops keys, country and nulls", () => {
-  assert.deepEqual(
-    trimAddress({ streetNumber: "1", streetName: "Main", city: "Spring", zip: "77379", state: "TX", country: "US", addressKey: "1mainspring", communityCode: null, majorIntersection: "A & B", district: null, unitNumber: null }),
-    { streetNumber: "1", streetName: "Main", city: "Spring", zip: "77379", state: "TX" },
+test("formatAddress prints what a card prints, falling back to the area when there is no city", () => {
+  assert.equal(
+    formatAddress({ streetNumber: "1", streetName: "Main", city: "Spring", zip: "77379", state: "TX", country: "US", addressKey: "1mainspring", communityCode: null, majorIntersection: "A & B", district: null, unitNumber: null }),
+    "1 Main, Spring, TX 77379",
   );
-  assert.equal(trimAddress(null), null);
+  assert.equal(formatAddress({ streetNumber: "9", streetName: "Bay", area: "Peel" }), "9 Bay, Peel");
+  assert.equal(formatAddress(null), null);
+  assert.equal(formatAddress("already a line"), "already a line");
 });
 
 test("Search_Listings asks /nlp for the card fields and slims the response", async () => {
@@ -95,16 +113,20 @@ test("refine-search keeps fields the caller or the url already chose", async () 
   assert.deepEqual(seen, ["mlsNumber,listPrice", "mlsNumber"]);
 });
 
-test("HAR rows keep every HAR field and get the trimmed address", async () => {
+test("HAR rows keep every HAR field; the listing enrichment gets the one-line address and day dates", async () => {
   global.fetch = async () => Response.json({ success: true, total: 1, data: [{
-    mlsNumber: "1", dateTracked: "2026-11-08", webView: 3, mobileView: null, images: ["har/a.jpg"],
+    mlsNumber: "1", dateTracked: "2026-11-08T00:00:00.000Z", webView: 3, mobileView: null, images: ["har/a.jpg"],
+    listDate: "2026-10-16T00:00:00.000-00:00", soldDate: null,
     address: { streetNumber: "1", streetName: "Main", city: "Spring", country: "US", addressKey: "k", district: null },
   }] });
   const result = await harViews.function({ _repliersApiKey: "k" });
   const [row] = result.data.data;
   assert.equal(row.mobileView, null, "HAR's own fields pass through untouched");
+  assert.equal(row.dateTracked, "2026-11-08T00:00:00.000Z", "HAR's own dates too");
+  assert.equal(row.soldDate, null);
   assert.deepEqual(row.images, ["har/a.jpg"]);
-  assert.deepEqual(row.address, { streetNumber: "1", streetName: "Main", city: "Spring" });
+  assert.equal(row.address, "1 Main, Spring");
+  assert.equal(row.listDate, "2026-10-16");
 });
 
 test("tool results are compact JSON", async () => {
