@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyError } from "../lib/apiErrors.js";
 
-const nlp = "https://api.repliers.io/nlp?nlpVersion=3";
+const nlp = "https://api.repliers.io/nlp";
 const listing = "https://api.repliers.io/listings/N13549286";
 
 // Bodies are the live shapes recorded on 2026-10-12 (design.md §3), plus the screenshot text of

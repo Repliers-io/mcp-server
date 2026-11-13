@@ -17,8 +17,9 @@ const executeFunction = async (args) => {
   let finalUrl; // Declare here to use in error handling
   
   try {
-    // Construct the URL
-    const url = new URL(`${baseUrl}/nlp?nlpVersion=3`);
+    // No `nlpVersion`: without it the API serves its latest NLP version, so a pin here would
+    // hold the server on an old model after the API moves on.
+    const url = new URL(`${baseUrl}/nlp`);
     
     finalUrl = url.toString(); // Capture the final URL
     

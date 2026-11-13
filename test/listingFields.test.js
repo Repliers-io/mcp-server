@@ -78,8 +78,9 @@ test("formatAddress prints what a card prints, falling back to the area when the
 });
 
 test("Search_Listings asks /nlp for the card fields and slims the response", async () => {
-  let sent;
+  let sent, sentUrl;
   global.fetch = async (url, init) => {
+    sentUrl = new URL(String(url));
     sent = JSON.parse(init.body);
     return Response.json({
       request: { url: "https://api.repliers.io/listings?city=Toronto", locations: [{ name: "Toronto", type: "city", map: { boundary: [[[1, 2]]] } }] },
@@ -87,6 +88,9 @@ test("Search_Listings asks /nlp for the card fields and slims the response", asy
     });
   };
   const result = await searchListings.function({ prompt: "condos in Toronto", _repliersApiKey: "k" });
+  assert.equal(sentUrl.pathname, "/nlp");
+  assert.equal(sentUrl.search, "", "no nlpVersion (or any query): the API then serves its latest NLP version");
+  assert.equal(new URL(result.url).search, "");
   assert.deepEqual(sent, { prompt: "condos in Toronto", listings: true, fields: LISTING_FIELDS });
   assert.deepEqual(result.data.listings.listings, [{ mlsNumber: "C1" }]);
   assert.equal(result.data.request.locations[0].map, undefined);
