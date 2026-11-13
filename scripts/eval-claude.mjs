@@ -14,9 +14,11 @@
 // (--strict-mcp-config), project settings only (no user plugins or hooks), the same two-sentence
 // realtor persona appended to Claude Code's system prompt, and of the built-in tools only Read
 // (--builtin-tools, default "Read"; no shell, no web search). Read is there because Claude Code
-// saves an MCP result over its token limit to a file and points the model at it; Search_Listings
-// results (~0.5 MB) always take that path, so with no Read at all the model gets no listings.
-// Pass --builtin-tools none to measure exactly that.
+// saves an MCP result over its token limit to a file and points the model at it. Search_Listings
+// results used to be ~0.5 MB and always took that path; since lib/listingFields.js 100 listings
+// are ~50 KB and arrive inline (a 53 KB result did, a 70 KB one went to a file), so Read now
+// matters only for results that still overflow. Pass --builtin-tools none to run with no way to
+// open a saved result.
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, openSync, readSync, closeSync } from "node:fs";

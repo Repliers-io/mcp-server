@@ -1,7 +1,7 @@
 {
   "id": "har",
   "title": "HAR partner tools battery (8 queries)",
-  "source": "mcp-server-docs/content/har-partner/status.md (live check 2026-11-09); listing 20651899 and the counts in `expect` were measured that day",
+  "source": "repliers-mcp-server-docs/content/har-partner/status.md (live check 2026-11-09); listing 20651899 and the counts in `expect` were measured that day",
   "note": "Needs a broker-wide HAR key (partners.har.enabled + brokerCode, board 147 = HAR MLS). The battery carries no key: run the runner with REPLIERS_API_KEY set to that key in its environment, which wins over .env. Dates are relative to 2026-11-09; re-measure the counts before reusing them.",
   "phases": {
     "har": {
