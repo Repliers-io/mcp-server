@@ -21,7 +21,7 @@ const payload = (res) => JSON.parse(res.content[1].text);
 const U = "https://api.repliers.io/listings?class=condo&city=Cooksville";
 
 const search = fakeTool("Search_Listings", async () => ({
-  url: "https://api.repliers.io/nlp?nlpVersion=3",
+  url: "https://api.repliers.io/nlp",
   data: { appliedFilters: { location: "city=Cooksville", type: null, unrecognized: [] }, request: { url: U }, nlpId: "n1", listings: { count: 3 } },
 }));
 const refine = (to) => fakeTool("refine-search", async () => ({
@@ -53,7 +53,7 @@ test("a restated search is not captured, and the session keeps no search memory 
 // ---- per-session quota (security S1)
 
 const discarding = fakeTool("Search_Listings", async () => ({
-  url: "https://api.repliers.io/nlp?nlpVersion=3",
+  url: "https://api.repliers.io/nlp",
   data: { appliedFilters: { location: "city=Cooksville", unrecognized: ["zeta"] }, request: { url: U }, nlpId: "n1", listings: { count: 3 } },
 }));
 const failing = (message) => fakeTool("get-listing", async () => ({ url: "https://api.repliers.io/listings/N1", error: message, status: 502, body: null }));
@@ -98,7 +98,7 @@ const leakedPrefix = (text) => {
 test("a key echoed across the 1000-character message cap never reaches a card, even in part", async () => {
   const reporter = fakeReporter();
   await callTool({
-    tool: fakeTool("Search_Listings", async () => ({ url: "https://api.repliers.io/nlp?nlpVersion=3", error: "x", status: 500, body: { message: `${"y".repeat(990)}${KEY}` } })),
+    tool: fakeTool("Search_Listings", async () => ({ url: "https://api.repliers.io/nlp", error: "x", status: 500, body: { message: `${"y".repeat(990)}${KEY}` } })),
     toolName: "Search_Listings", args: { prompt: "p" }, repliersApiKey: KEY, reporter,
   });
   assert.equal(reporter.reports.length, 1);

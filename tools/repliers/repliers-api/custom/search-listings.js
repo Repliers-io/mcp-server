@@ -1,6 +1,7 @@
 import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { apiBaseUrl } from "../../../../lib/apiBase.js";
 import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
+import { LISTING_FIELDS, compactListings, slimRequest } from "../../../../lib/listingFields.js";
 import { autoCaptureConfigured, effectiveCaptureMode } from "../../../../lib/trello.js";
 
 /**
@@ -16,8 +17,9 @@ const executeFunction = async (args) => {
   let finalUrl; // Declare here to use in error handling
   
   try {
-    // Construct the URL
-    const url = new URL(`${baseUrl}/nlp?nlpVersion=3`);
+    // No `nlpVersion`: without it the API serves its latest NLP version, so a pin here would
+    // hold the server on an old model after the API moves on.
+    const url = new URL(`${baseUrl}/nlp`);
     
     finalUrl = url.toString(); // Capture the final URL
     
@@ -25,9 +27,12 @@ const executeFunction = async (args) => {
     const response = await fetch(finalUrl, {
       method: "POST",
       headers: apiHeaders(args, { json: true }),
+      // /nlp honours `fields` in the body (not in the query); it ignores a page size, so the
+      // response is always up to 100 listings and the fields are what keeps it readable.
       body: JSON.stringify({
         prompt: args.prompt,
-        listings: true
+        listings: true,
+        fields: LISTING_FIELDS,
       })
     });
     
@@ -40,7 +45,7 @@ const executeFunction = async (args) => {
     // Parse and return the response data
     const data = await response.json();
     const requestUrl = data.request?.url || null;
-    const { appliedFilters: _af, complexQuery: _cq, ...rest } = data;
+    const { appliedFilters: _af, complexQuery: _cq, request, listings, ...rest } = data;
     return {
       url: finalUrl,
       data: {
@@ -49,6 +54,8 @@ const executeFunction = async (args) => {
           : null,
         complexQuery: Boolean(data.request?.body?.queries),
         ...rest,
+        ...(request !== undefined && { request: slimRequest(request) }),
+        ...(listings !== undefined && { listings: compactListings(listings) }),
       },
     };
   } catch (error) {
