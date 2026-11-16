@@ -65,6 +65,9 @@ Repliers runs this server at **`https://mcp.repliers.io`**. Nothing to install; 
 
 1. Sign in to the [Repliers Developer Portal](https://login.repliers.com/dashboard/apikeys).
 2. Find your API key and click the **MCP** icon next to it.
+3. That key is now linked to Repliers MCP
+
+![Click this button to link API key to Repliers MCP server](https://storage.crisp.chat/users/helpdesk/website/-/9/5/7/a/957a8eb8f0b80800/screenshot-2026-11-16-at-16221_fc1n5f.png)
 
 Only one API key can be linked to Repliers MCP at a time. Linking a new key unlinks the previous one; you do not need to reconnect or sign in again after changing it.
 
