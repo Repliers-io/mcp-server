@@ -234,7 +234,7 @@ test("a key across the 80-character key cut and the 2000-character body cut leav
   assert.equal(JSON.stringify(body).indexOf(KEY, shell), 1995, "the body echo straddles the 2000 cut");
   const [sig] = captureSignals({
     toolName: "Search_Listings", args: { prompt: "p" }, secret: KEY,
-    result: { url: "https://api.repliers.io/nlp?nlpVersion=3", status: 500, body },
+    result: { url: "https://api.repliers.io/nlp", status: 500, body },
     classification: { kind: "upstream", status: 500, message, capture: true },
   });
   assert.ok(lineOf(sig, "Body"), "the listing-search tools keep the body");

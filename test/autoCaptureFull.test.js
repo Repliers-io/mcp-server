@@ -32,7 +32,7 @@ const everything = (sig) => [sig.key, sig.summary, ...sig.lines].join("\n");
 const payload = (res) => JSON.parse(res.content[1].text);
 const U = "https://api.repliers.io/listings?class=condo&city=Cooksville";
 const search = fakeTool("Search_Listings", async () => ({
-  url: "https://api.repliers.io/nlp?nlpVersion=3",
+  url: "https://api.repliers.io/nlp",
   data: { appliedFilters: { location: "city=Cooksville", type: null, unrecognized: [] }, request: { url: U }, nlpId: "n1", listings: { count: 3 } },
 }));
 const refine = (to) => fakeTool("refine-search", async () => ({

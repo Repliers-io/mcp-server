@@ -13,6 +13,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { discoverTools, toolAnnotations } from "./lib/tools.js";
+import { hasEntitlement, visibleTools } from "./lib/entitlements.js";
 import { callTool, createSessionState } from "./lib/toolCall.js";
 import { autoCaptureNotice } from "./lib/autoReport.js";
 import { userAgent } from "./lib/apiRequest.js";
@@ -170,10 +171,18 @@ async function setupServerHandlers(server, tools) {
   // the tools, because they are registered on the same per-session Server.
   registerSkillHandlers(server, skills);
 
-  // List tools handler. Every authenticated caller sees the whole roster: a token that opens
-  // the server can call anything on it.
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: await transformTools(tools) };
+  // The Repliers key is resolved per request, from the identity verifyOAuthToken proved for this
+  // very request, rather than captured when the session was opened. A key that is rotated or
+  // revoked upstream therefore takes effect on the next request instead of living on for the
+  // lifetime of the session. Absent in self-hosted and stdio mode, where there is no per-user
+  // identity and the environment key is the only one.
+  const keyFor = (extra) => extra?.authInfo?.extra?.repliersApiKey ?? process.env.REPLIERS_API_KEY;
+
+  // List tools handler. Every authenticated caller sees the whole roster, except tools gated on
+  // an entitlement the caller's key lacks (lib/entitlements.js) — for that key they do not exist.
+  server.setRequestHandler(ListToolsRequestSchema, async (_request, extra) => {
+    const visible = await visibleTools(tools, keyFor(extra), { userAgent: userAgent(server.getClientVersion()) });
+    return { tools: await transformTools(visible) };
   });
 
   // Per-session state: the capture quota.
@@ -181,24 +190,24 @@ async function setupServerHandlers(server, tools) {
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const toolName = request.params.name;
-    console.error(`[DEBUG] Tool call requested: ${toolName}`);
+    // The name is client-supplied: logSafe keeps it from forging log lines.
+    console.error(`[DEBUG] Tool call requested: ${logSafe(toolName)}`);
+    const repliersApiKey = keyFor(extra);
+    const agent = userAgent(server.getClientVersion());
     const tool = tools.find((t) => t.definition.function.name === toolName);
-    if (!tool) {
-      console.error(`[ERROR] Tool not found: ${toolName}`);
+    // A gated tool the key may not use answers exactly like a name that does not exist, so the
+    // refusal reveals nothing about what other keys can see.
+    const hidden = tool?.entitlement && !(await hasEntitlement(tool.entitlement, repliersApiKey, { userAgent: agent }));
+    if (!tool || hidden) {
+      console.error(`[ERROR] Tool not found: ${logSafe(toolName)}`);
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
     }
-    // The Repliers key is resolved per request, from the identity verifyOAuthToken proved
-    // for this very call, rather than captured when the session was opened. A key that is
-    // rotated or revoked upstream therefore takes effect on the next call instead of living
-    // on for the lifetime of the session. Absent in self-hosted and stdio mode, where there
-    // is no per-user identity and the environment key is the only one.
-    const repliersApiKey = extra?.authInfo?.extra?.repliersApiKey ?? process.env.REPLIERS_API_KEY;
     return callTool({
       tool,
       toolName,
       args: request.params.arguments,
       repliersApiKey,
-      userAgent: userAgent(server.getClientVersion()),
+      userAgent: agent,
       session,
     });
   });

@@ -86,11 +86,11 @@ test("golden rules stay free of the location prohibition (it belongs on the tool
     "a global prohibition block made weak models refuse the whole domain — keep it scoped to the tool");
 });
 
-test("repairsNlpId is gone from the schema and only prompt and listings go to the NLP endpoint", async () => {
+test("repairsNlpId is gone from the schema and only prompt, listings and fields go to the NLP endpoint", async () => {
   assert.equal(apiTool.definition.function.parameters.properties.repairsNlpId, undefined);
   assert.deepEqual(Object.keys(apiTool.definition.function.parameters.properties), ["prompt"]);
   let sent;
   global.fetch = async (url, init) => { sent = JSON.parse(init.body); return new Response('{"request":{"url":"https://api.repliers.io/listings?city=X"},"listings":{"count":0}}', { status: 200 }); };
   await apiTool.function({ prompt: "p", repairsNlpId: "n1", _repliersApiKey: "k" });
-  assert.deepEqual(Object.keys(sent).sort(), ["listings", "prompt"]);
+  assert.deepEqual(Object.keys(sent).sort(), ["fields", "listings", "prompt"]);
 });
