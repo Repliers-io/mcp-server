@@ -1,10 +1,10 @@
 # Repliers MCP Server
 
-An MCP (Model Context Protocol) server that gives AI assistants like Claude access to real-time MLS data via the [Repliers API](https://repliers.com/developer-agencies/).
+An MCP (Model Context Protocol) server that gives AI assistants like ChatGPT, Claude, Claude Code and Codex access to real-time MLS data via the [Repliers API](https://repliers.com/developer-agencies/).
 
 Use natural language to search listings, pull market statistics, and look up properties:
 
-- "Find me 3 bedroom condos in Toronto under $800k listed in the last week"
+- "Find me 3 bedroom condos in Los Angeles under $800k listed in the last week"
 - "What's the average sold price for detached homes in Boston grouped by month over the last year?"
 - "Get me the details for MLS number X12345678"
 
@@ -14,10 +14,16 @@ Use natural language to search listings, pull market statistics, and look up pro
 
 | Tool | Description |
 |---|---|
-| `Search_Listings` | Natural language listing search powered by Repliers NLP — requires NLP to be enabled on your Repliers account (see below) |
-| `get_listing` | Fetch a single listing by MLS number |
+| `Search_Listings` | Search listings on the MLS |
+| `refine-search` | Correct a previous `Search_Listings` result when a constraint was dropped or substituted, re-running it with only the named parameters changed |
+| `get-listing` | Fetch a single listing by MLS number |
+| `Get_Listing_Image` | Download a listing's photo and return it as viewable image data |
+| `get-similar-listings` | Listings similar to a given property by location, price, or type |
+| `get-address-listing-history` | Full MLS listing history for a specific address |
 | `Market_Statistics` | Market stats — averages, medians, days on market, grouped by time or geography |
-| `Lookup_Possible_Values` | Enumerate valid filter values (property types, neighborhoods, etc.) before running a statistics query |
+| `Lookup_Possible_Values` | Enumerate valid filter values (property types, neighborhoods, etc.) before running a statistics query or a refinement |
+
+Beyond listings, the server also exposes tools for locations and buildings, agents, members and brokerages, clients, saved searches, favorites, estimates, messaging and feedback. The full roster is in [Setting up Repliers MCP](https://help.repliers.com/en/article/setting-up-repliers-mcp-8mi5t5/#available-tools).
 
 ---
 
@@ -26,17 +32,6 @@ Use natural language to search listings, pull market statistics, and look up pro
 ### Repliers API Key
 
 You'll need a Repliers API key. If you don't have an account, sign up at [repliers.com](https://auth.repliers.com/en/signup). You can find your API key in the [Repliers dashboard](https://login.repliers.com/dashboard/apikeys).
-
-### Enabling NLP for Search_Listings
-
-The `Search_Listings` tool uses Repliers' AI-powered NLP search, which translates natural language queries into listing results. This requires:
-
-1. An **OpenAI API key** linked to your Repliers account
-2. NLP enabled on your account
-
-Follow the setup guide here: [Utilizing AI-Powered NLP for Real Estate Listing Searches](https://help.repliers.com/en/article/utilizing-ai-powered-nlp-for-real-estate-listing-searches-1fvddra/#3-how-to-enable-nlp-search)
-
-If NLP isn't enabled, the other three tools (`get_listing`, `Market_Statistics`, `Lookup_Possible_Values`) will still work fine.
 
 ---
 
@@ -58,7 +53,7 @@ There are two ways to use this MCP server. Full walkthrough with screenshots: [S
 | --- | --- | --- |
 | Server to run | none | yours (Node or [Docker](#docker)) |
 | Auth | sign in with your Repliers account | none — API key in the environment |
-| Clients | claude.ai, ChatGPT, any remote-MCP client | Claude Desktop, Postman, any stdio/HTTP client |
+| Clients | Claude, ChatGPT, Claude Code, Codex, Cursor and other [supported remote-MCP clients](https://help.repliers.com/en/article/setting-up-repliers-mcp-8mi5t5/#supported-mcp-clients) | Claude Desktop, Claude Code, Postman, any stdio/HTTP client |
 
 ---
 
@@ -71,19 +66,20 @@ Repliers runs this server at **`https://mcp.repliers.io`**. Nothing to install; 
 1. Sign in to the [Repliers Developer Portal](https://login.repliers.com/dashboard/apikeys).
 2. Find your API key and click the **MCP** icon next to it.
 
-Only one API key can be linked to Repliers MCP at a time. For `Search_Listings` the linked key must also have NLP enabled — see [Enabling NLP](#enabling-nlp-for-search_listings).
+Only one API key can be linked to Repliers MCP at a time. Linking a new key unlinks the previous one; you do not need to reconnect or sign in again after changing it.
 
-**2. Add the connector in your client:**
+**2. Add the server in your client.** Both `https://mcp.repliers.io` and `https://mcp.repliers.io/mcp` are accepted. The server speaks Streamable HTTP and authenticates with OAuth 2.1.
 
-- **Claude (claude.ai):** menu → **Customize** → **Connectors** → **Add connector** → URL `https://mcp.repliers.io` → Save.
-- **ChatGPT:** **Settings** → **Connectors** → **Add a custom connector / MCP server** → URL `https://mcp.repliers.io` → Save.
+- **Claude (claude.ai and Claude Desktop):** **Settings** → **Connectors** → **Add custom connector** → URL `https://mcp.repliers.io` → Save.
+- **ChatGPT** (set up from the web app at chatgpt.com, not the desktop apps): **Plugins** → **Add** → **Add Custom MCP Server** → name it, URL `https://mcp.repliers.io/mcp`, leave **Authentication** on **OAuth** → **Create as a plugin**. If you added Repliers to ChatGPT before, uninstall the old plugin first — two plugins offering the same tools make every request fail.
+- **Claude Code:** `claude mcp add --transport http repliers https://mcp.repliers.io/mcp`, then run `/mcp` and choose **Authenticate** next to `repliers`.
+- **Codex, Cursor and other MCP clients:** add a remote (HTTP) server with the URL `https://mcp.repliers.io/mcp` and leave authentication set to OAuth.
 
 **3. Sign in** with your Repliers account when the client prompts you. After that the linked API key is used for every request; no key ever goes into the client config.
 
-> **One-time re-login when the hosted server moves to OAuth 2.1.** The login flow is changing so
-> that command-line and desktop clients — Claude Code, Claude Desktop, Codex — can sign in at all,
-> which they currently cannot. Existing connectors will ask you to log in once more after the
-> change; nothing else about them changes, and no API key needs re-issuing.
+> **Upgraded from an earlier version?** The hosted server moved to OAuth 2.1. Connectors created
+> before the change will ask you to sign in once more; nothing else about them changes, and your
+> linked API key does not need to be re-issued.
 
 ---
 
@@ -144,6 +140,16 @@ Add to **Claude Desktop → Settings → Developers → Edit Config**:
 
 Restart Claude Desktop and confirm the green indicator under **Settings → Developers**. To run the same thing from a container instead, see [Docker](#docker).
 
+#### Claude Code (HTTP)
+
+With the server running as `node mcpServer.js --http`:
+
+```sh
+claude mcp add --transport http repliers http://localhost:3001/mcp
+```
+
+No sign-in is needed for a self-hosted server.
+
 #### Postman (stdio, quick tool check)
 
 In [Postman Desktop](https://www.postman.com/downloads/) create a new **MCP Request**, set the type to **STDIO** and the command to `node /absolute/path/to/mcpServer.js`, then **Connect** to browse the tool roster.
@@ -153,7 +159,10 @@ In [Postman Desktop](https://www.postman.com/downloads/) create a new **MCP Requ
 | Symptom | Fix |
 | --- | --- |
 | Hosted: "MCP server not connected" | Link an API key in the Developer Portal — only one key can be linked at a time |
-| Hosted: asked to sign in on every connection | Finish the sign-in flow fully; if it persists, unlink and re-link the API key |
+| Hosted: asked to sign in on every connection | Finish the sign-in flow fully; if it persists, remove and re-add the connector, or unlink and re-link the API key |
+| Hosted: sign-in fails with an OAuth redirect/callback error | The client is probably not on the [supported clients list](https://help.repliers.com/en/article/setting-up-repliers-mcp-8mi5t5/#supported-mcp-clients) — contact Repliers support to have it added |
+| ChatGPT desktop app shows no option to add a plugin | Set it up from the web app at chatgpt.com; it then appears in the desktop and mobile apps |
+| `npm install` refuses to run | Your Node.js version does not match `.nvmrc` — install the pinned version or run `nvm use` / `fnm use` |
 | Claude Desktop runs an old Node | Use the absolute path from `which node` in `command` |
 | Tools don't appear after editing the config | Restart Claude Desktop; check for the green status under **Settings → Developers** |
 
@@ -316,16 +325,16 @@ For a stdio MCP client (Claude Desktop, Cursor, …) point the client at `docker
 
 ## Agent feedback & search reliability
 
-The server nudges agents to verify NLP search results and report problems (design:
-`docs/agent-feedback/design.md`).
+The server nudges agents to verify search results against the request, and files problem reports as
+Trello cards on your own board.
 
 | Env var | Default | Effect |
 |---|---|---|
-| `TRELLO_API_KEY` / `TRELLO_API_TOKEN` / `TRELLO_LIST_ID` | unset | Feedback sink. All three set → the `send-feedback` tool is registered and `_feedback` nudges are emitted. Any missing → the tool is hidden and nudges are suppressed. |
-| `FEEDBACK_PROMPT_LEVEL` | `high` | `off` — no nudges; `low` — nudges only on detected problems (zero results, missing location filter, API errors, oversized responses); `high` — also a verify/offer note on every search response. |
+| `TRELLO_API_KEY` / `TRELLO_API_TOKEN` / `TRELLO_LIST_ID` | unset | Feedback sink. All three set → the `send-feedback` tool is registered and `_feedback` nudges are emitted. Any missing → the tool is hidden, nudges are suppressed and nothing is recorded. |
+| `TRELLO_AUTO_LIST_ID` | unset | A second Trello list for automatic `[MCP·auto]` cards: defects the server detects itself (parameters the API discarded, Repliers service errors), deduplicated and rate-limited. Without it automatic capture is off and a startup line says so; `send-feedback` still works. |
+| `FEEDBACK_AUTO_CAPTURE` | `narrow` | `narrow` — capture only discarded parameters and service errors; `full` — also capture `refine-search` corrections and restated searches. `full` needs `TRELLO_AUTO_LIST_ID` (or dry-run). |
+| `FEEDBACK_DRY_RUN` | unset | `true` — the feedback channel acts configured without Trello keys; cards are written to the server's log instead of posted. |
+| `FEEDBACK_PROMPT_LEVEL` | `high` | `off` — no nudges; `low` — nudges only on detected problems (zero results, missing location filter, oversized responses, a `refine-search` correction); `high` — also a verify note on every search response. |
 
 Note: `node index.js tools` does not load `.env`, so `send-feedback` may be absent from that CLI
 listing while still being served — check via a real MCP session.
-
-To obtain those three values, or to point the sink at a different Trello account, board or list, see
-[docs/agent-feedback/trello-setup.md](docs/agent-feedback/trello-setup.md).
