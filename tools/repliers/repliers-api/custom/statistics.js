@@ -1,4 +1,4 @@
-import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { apiFetch, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Comprehensive Repliers API Listings Search Tool
@@ -63,12 +63,11 @@ const executeFunction = async (args) => {
     finalUrl = url.toString();
 
     const hasBodyParams = Object.keys(bodyParams).length > 0;
-    const headers = apiHeaders(args, { json: hasBodyParams });
 
     // Execute request
-    const response = await fetch(finalUrl, {
+    const response = await apiFetch(finalUrl, args, {
       method: hasBodyParams ? "POST" : "GET",
-      headers,
+      json: hasBodyParams,
       ...(hasBodyParams && { body: JSON.stringify(bodyParams) }),
     });
 

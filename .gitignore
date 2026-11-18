@@ -72,12 +72,10 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# dotenv environment variable files: every variant, since they hold secrets.
+# The committed template holds variable names only, so it stays trackable.
+.env*
+!.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

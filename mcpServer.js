@@ -16,7 +16,7 @@ import { discoverTools, toolAnnotations } from "./lib/tools.js";
 import { hasEntitlement, visibleTools } from "./lib/entitlements.js";
 import { callTool, createSessionState } from "./lib/toolCall.js";
 import { autoCaptureNotice } from "./lib/autoReport.js";
-import { userAgent } from "./lib/apiRequest.js";
+import { userAgent, enableIntegrationKey, integrationKey, integrationKeyNotice } from "./lib/apiRequest.js";
 import { buildServerInstructions } from "./lib/serverInstructions.js";
 import { loadSkills } from "./lib/skills.js";
 import { registerSkillHandlers, serverCapabilities } from "./lib/skillHandlers.js";
@@ -225,11 +225,26 @@ async function run() {
     if (autoNotice) console.error(autoNotice);
     const args = process.argv.slice(2);
     const isSSE = args.includes("--http") || args.includes("--sse");
+    const selfHosted = !!process.env.REPLIERS_API_KEY;
+    // The integration key attributes hosted traffic: only the hosted HTTP server sends it. stdio and
+    // self-hosted servers ignore it, whatever their environment or .env holds.
+    // --send-integration-key is forcing the inclusion of the integration key header for self-hosted HTTP requests.
+    const forceIntegrationKey = isSSE && selfHosted && args.includes("--send-integration-key");
+    if (isSSE && (!selfHosted || forceIntegrationKey)) enableIntegrationKey();
+    // The flag exists only to exercise the header: without a usable key it would test nothing
+    if (forceIntegrationKey && !integrationKey()) {
+      console.error(
+        "[FATAL] --send-integration-key: REPLIERS_INTEGRATION_KEY is unset or invalid (24-256 characters " +
+          "from A-Z, a-z, 0-9, _ and -), so there is no header to send. Set it in .env, or drop the flag."
+      );
+      process.exit(1);
+    }
+    const integrationNotice = integrationKeyNotice({ forced: forceIntegrationKey });
+    if (integrationNotice) console.error(integrationNotice);
 
     if (isSSE) {
       console.error("[DEBUG] Starting SSE mode");
 
-      const selfHosted = !!process.env.REPLIERS_API_KEY;
       console.error(`[DEBUG] Mode: ${selfHosted ? 'self-hosted (env key)' : 'hosted (PropelAuth)'}`);
 
       // REPLIERS_API_KEY alone means self-hosted, which is a legitimate deployment. Together with

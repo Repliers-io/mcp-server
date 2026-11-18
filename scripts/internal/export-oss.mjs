@@ -1,3 +1,7 @@
+// NOT IN USE: this repo itself is public on GitHub (github.com/Repliers-io/mcp-server), so every
+// tracked file, EXCLUDE entries included, is already published on push. Nothing below keeps anything
+// private; it is kept only in case a filtered mirror is wanted again.
+//
 // Copies the public part of this repo into the open-source mirror: `npm run export:oss [-- <outDir>]`,
 // default ../mcp-server-oss. The destination is emptied except its .git, so files deleted here do not
 // linger there and a repo kept there shows each export as a diff. Only files git tracks are copied —

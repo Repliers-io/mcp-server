@@ -1,4 +1,4 @@
-import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { apiFetch, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { apiBaseUrl } from "../../../../lib/apiBase.js";
 /**
  * Function to get enumerated values using the Repliers API.
@@ -28,10 +28,7 @@ const executeFunction = async (args) => {
     finalUrl = url.toString(); // Capture the final URL
     
     // Perform the fetch request
-    const response = await fetch(finalUrl, {
-      method: "GET",
-      headers: apiHeaders(args),
-    });
+    const response = await apiFetch(finalUrl, args, { method: "GET" });
     
     // Check if the response was successful
     if (!response.ok) {

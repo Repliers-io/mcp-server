@@ -2,7 +2,7 @@
 // Source: DELETE /clients/{clientId} (operationId: delete-a-client)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
-import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
+import { apiFetch, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
@@ -14,9 +14,8 @@ const executeFunction = async (args) => {
   const finalUrl = url.toString();
 
   try {
-    const response = await fetch(finalUrl, {
+    const response = await apiFetch(finalUrl, args, {
       method: 'DELETE',
-      headers: apiHeaders(args),
     });
 
     if (!response.ok) {

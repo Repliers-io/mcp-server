@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { callTool, createSessionState } from "../lib/toolCall.js";
 import { createReporter } from "../lib/autoReport.js";
+import { enableIntegrationKey } from "../lib/apiRequest.js";
 import { fakeTool, fakeReporter } from "./helpers/toolDoubles.js";
 
 const realEnv = { ...process.env };
@@ -14,6 +15,7 @@ beforeEach(() => {
   process.env.FEEDBACK_PROMPT_LEVEL = "high";
 });
 afterEach(() => {
+  enableIntegrationKey(false);
   for (const key of Object.keys(process.env)) if (!(key in realEnv)) delete process.env[key];
   Object.assign(process.env, realEnv);
 });
@@ -162,6 +164,45 @@ test("the caller's API key never reaches a card", async () => {
   });
   assert.equal(reporter.reports.length, 1);
   assert.doesNotMatch(JSON.stringify(reporter.reports), /SECRET-KEY-123/);
+});
+
+// The hosted integration key is never in args; the API is the only thing that could echo it back.
+const INTEGRATION = "INT-SECRET-capture-7f3a9c2e1b4d";
+
+test("the integration key never reaches a card or an error response", async () => {
+  process.env.REPLIERS_INTEGRATION_KEY = INTEGRATION;
+  enableIntegrationKey();
+  const reporter = fakeReporter();
+  const res = await callTool({
+    tool: fakeTool("Search_Listings", async () => ({
+      url: `https://api.repliers.io/nlp?i=${encodeURIComponent(INTEGRATION)}`, error: `echo ${INTEGRATION}`, status: 500,
+      body: { message: `echo ${INTEGRATION}`, echo: encodeURIComponent(INTEGRATION), json: JSON.stringify({ k: INTEGRATION }) },
+    })),
+    toolName: "Search_Listings", args: { prompt: "p" }, repliersApiKey: "rk-test-0001", reporter,
+  });
+  assert.equal(reporter.reports.length, 1);
+  for (const text of [JSON.stringify(reporter.reports), JSON.stringify(res)]) {
+    assert.ok(!text.includes("INT-SECRET"), text);
+  }
+});
+
+test("the integration key is scrubbed from a success payload that echoes it, and only then", async () => {
+  process.env.REPLIERS_INTEGRATION_KEY = INTEGRATION;
+  enableIntegrationKey();
+  const echoing = fakeTool("get-listing", async () => ({
+    url: `https://api.repliers.io/listings/N1?i=${INTEGRATION}`, data: { mlsNumber: "N1", echo: INTEGRATION, nested: [{ again: INTEGRATION }] },
+  }));
+  const res = await callTool({ tool: echoing, toolName: "get-listing", args: {}, repliersApiKey: "rk-test-0001", reporter: fakeReporter() });
+  assert.equal(res.isError, undefined);
+  assert.ok(!JSON.stringify(res).includes("INT-SECRET"), JSON.stringify(res));
+  assert.deepEqual(payload(res), { mlsNumber: "N1", echo: "[redacted]", nested: [{ again: "[redacted]" }] });
+
+  const plainData = { mlsNumber: "N2", listings: [{ city: "Toronto" }] };
+  const untouched = await callTool({
+    tool: fakeTool("get-listing", async () => ({ url: "https://api.repliers.io/listings/N2", data: plainData })),
+    toolName: "get-listing", args: {}, repliersApiKey: "rk-test-0001", reporter: fakeReporter(),
+  });
+  assert.deepEqual(payload(untouched), plainData);
 });
 
 test("a search that discards a parameter is recorded and says so", async () => {

@@ -149,7 +149,8 @@ export async function startFakePropelAuth(users = defaultUsers()) {
 }
 
 /**
- * Stands in for api.repliers.io, recording the REPLIERS-API-KEY each tool call arrives with.
+ * Stands in for api.repliers.io, recording the REPLIERS-API-KEY each tool call arrives with, and
+ * the REPLIERS-INTEGRATION-KEY (null when the header is absent).
  * Keys listed in `harKeys` have HAR enabled: GET /accounts answers their own account with
  * configuration.partners.har, and /partners/har/* serves them. Every other key gets an account
  * without HAR and the real API's 403 on those routes, so by default no session sees the HAR tools.
@@ -158,7 +159,7 @@ export async function startFakeRepliersApi({ harKeys = [] } = {}) {
   const received = [];
   const server = http.createServer((req, res) => {
     const key = req.headers["repliers-api-key"] ?? null;
-    received.push({ key, url: req.url });
+    received.push({ key, url: req.url, integrationKey: req.headers["repliers-integration-key"] ?? null });
     if (req.url === "/accounts") {
       const configuration = harKeys.includes(key) ? { partners: { har: { enabled: true, brokerCode: "B1" } } } : {};
       return res
@@ -198,9 +199,10 @@ function freePort() {
  * Boots the real mcpServer.js in hosted mode.
  * The empty REPLIERS_API_KEY matters: process.loadEnvFile never overrides an already-set
  * variable, so it keeps the repo's own .env from flipping the server into self-hosted mode
- * (which would drop token verification from the chain entirely). Same trick pins the API host.
+ * (which would drop token verification from the chain entirely). Same trick pins the API host,
+ * and keeps any REPLIERS_INTEGRATION_KEY out of test traffic unless a suite sets one.
  */
-export async function startMcpServer({ propelAuth, repliersApiPort, env = {} }) {
+export async function startMcpServer({ propelAuth, repliersApiPort, env = {}, args = [] }) {
   const port = await freePort();
   // A self-hosted server runs no token verification, so it never reaches this host. Omitting the
   // fake is how a suite asks for that mode; there is deliberately no port-only form, because one
@@ -214,11 +216,12 @@ export async function startMcpServer({ propelAuth, repliersApiPort, env = {} }) 
   // audience overrides this afterwards with propelAuth.setAudience().
   propelAuth?.setAudience(`${publicUrl}/mcp`);
 
-  const child = spawn(process.execPath, ["mcpServer.js", "--http"], {
+  const child = spawn(process.execPath, ["mcpServer.js", "--http", ...args], {
     cwd: repoRoot,
     env: {
       ...process.env,
       REPLIERS_API_KEY: "",
+      REPLIERS_INTEGRATION_KEY: "",
       REPLIERS_API_BASE_URL: repliersApiPort ? `http://127.0.0.1:${repliersApiPort}` : "",
       PORT: String(port),
       MCP_PUBLIC_URL: publicUrl,
