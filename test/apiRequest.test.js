@@ -1,10 +1,30 @@
 // test/apiRequest.test.js
-import { test } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { userAgent, apiHeaders, readFailure, errorMessage } from "../lib/apiRequest.js";
+import {
+  userAgent, apiHeaders, apiFetch, readFailure, errorMessage, enableIntegrationKey, integrationKey, integrationKeyNotice,
+} from "../lib/apiRequest.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+
+// The shell running the suite may carry these; every test starts without the integration key, with
+// the default API host, and with the key disabled, as in stdio and self-hosted mode.
+const realEnv = { REPLIERS_INTEGRATION_KEY: process.env.REPLIERS_INTEGRATION_KEY, REPLIERS_API_BASE_URL: process.env.REPLIERS_API_BASE_URL };
+beforeEach(() => {
+  for (const name of Object.keys(realEnv)) delete process.env[name];
+});
+afterEach(() => {
+  enableIntegrationKey(false);
+  for (const [name, value] of Object.entries(realEnv)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+});
+
+const VALID = "INT-SECRET-7f3a9c2e1b4d6f8a0c";
+const API_URL = "https://api.repliers.io/listings/N1";
+const sent = (options) => apiHeaders({ _repliersApiKey: "k" }, { url: API_URL, ...options })["REPLIERS-INTEGRATION-KEY"];
 
 test("User-Agent names this server, and the MCP client when it announced itself", () => {
   assert.equal(userAgent(), `repliers-mcp-server/${version}`);
@@ -21,12 +41,171 @@ test("client-controlled clientInfo is reduced to printable ASCII and capped at 6
 });
 
 test("apiHeaders carries key, User-Agent, Accept, and Content-Type only for JSON bodies", () => {
-  assert.deepEqual(apiHeaders({ _repliersApiKey: "k", _userAgent: "ua/1" }, { json: true }), {
+  assert.deepEqual(apiHeaders({ _repliersApiKey: "k", _userAgent: "ua/1" }, { json: true, url: API_URL }), {
     "REPLIERS-API-KEY": "k", "User-Agent": "ua/1", Accept: "application/json", "Content-Type": "application/json",
   });
-  const noAccept = apiHeaders({ _repliersApiKey: "k" }, { accept: null });
+  const noAccept = apiHeaders({ _repliersApiKey: "k" }, { accept: null, url: API_URL });
   assert.equal(noAccept.Accept, undefined);
   assert.equal(noAccept["User-Agent"], `repliers-mcp-server/${version}`);
+});
+
+// Hosted only: a self-hosted server sends no integration header at all, never an empty one.
+test("REPLIERS-INTEGRATION-KEY is absent while the variable is unset or blank", () => {
+  enableIntegrationKey();
+  for (const value of [undefined, "", "   ", "\n"]) {
+    if (value === undefined) delete process.env.REPLIERS_INTEGRATION_KEY;
+    else process.env.REPLIERS_INTEGRATION_KEY = value;
+    const headers = apiHeaders({ _repliersApiKey: "k" }, { url: API_URL });
+    assert.ok(!("REPLIERS-INTEGRATION-KEY" in headers), `sent for ${JSON.stringify(value)}`);
+    assert.equal(integrationKey(), null);
+    assert.equal(integrationKeyNotice(), null);
+  }
+});
+
+test("REPLIERS-INTEGRATION-KEY carries the variable, trimmed, read on every call", () => {
+  enableIntegrationKey();
+  process.env.REPLIERS_INTEGRATION_KEY = `  ${VALID}\n`;
+  assert.equal(sent(), VALID);
+  assert.equal(integrationKeyNotice(), null);
+  const rotated = "Zk3Qx9_-aB7cD2eF4gH6iJ8kL0mN1oP3qR5sT7uV9wX"; // 43-char base64url
+  process.env.REPLIERS_INTEGRATION_KEY = rotated;
+  assert.equal(sent(), rotated);
+  for (const boundary of ["a".repeat(24), "b".repeat(256)]) {
+    process.env.REPLIERS_INTEGRATION_KEY = boundary;
+    assert.equal(sent(), boundary);
+  }
+});
+
+// stdio and self-hosted servers never enable it: their environment (or .env) is not hosted traffic.
+test("a valid key is not sent until hosted mode enables it, and the notice says it is ignored", () => {
+  process.env.REPLIERS_INTEGRATION_KEY = VALID;
+  assert.equal(sent(), undefined);
+  assert.equal(integrationKey(), null);
+  const notice = integrationKeyNotice();
+  assert.match(notice, /^\[CONFIG\] REPLIERS_INTEGRATION_KEY is ignored outside hosted HTTP mode/);
+  assert.ok(!notice.includes(VALID));
+  enableIntegrationKey();
+  assert.equal(sent(), VALID);
+  enableIntegrationKey(false);
+  assert.equal(sent(), undefined);
+});
+
+// Only the issued format passes. A CR/LF makes fetch throw an error that quotes the value; a short
+// or literal value would let the scrubber mangle text or confirm guesses.
+test("anything but the issued format is dropped, and the notice never repeats it", () => {
+  enableIntegrationKey();
+  const invalid = [
+    `${VALID}\r\nX-Evil-1`, // invalid only because of the CRLF
+    "abcdefghijklmnopqrstuvw", // 23 characters
+    "undefined", "null", "0",
+    `${VALID}\u0007`, `${VALID}é`, `${VALID} x`, `${VALID}/+=`, "x".repeat(257),
+  ];
+  const notices = new Set();
+  for (const value of invalid) {
+    process.env.REPLIERS_INTEGRATION_KEY = value;
+    const headers = apiHeaders({ _repliersApiKey: "k" }, { url: API_URL });
+    assert.ok(!("REPLIERS-INTEGRATION-KEY" in headers), `sent for ${JSON.stringify(value)}`);
+    assert.doesNotThrow(() => new Headers(headers));
+    const notice = integrationKeyNotice();
+    assert.match(notice, /^\[CONFIG\] REPLIERS_INTEGRATION_KEY is set but invalid/);
+    assert.ok(!notice.includes("INT-SECRET"), `notice repeats part of ${JSON.stringify(value)}`);
+    notices.add(notice);
+  }
+  assert.equal(notices.size, 1, "the notice must not vary with the value");
+});
+
+test("tool args can neither set nor override the integration key", () => {
+  enableIntegrationKey();
+  const args = { _repliersApiKey: "k", _repliersIntegrationKey: "evil", REPLIERS_INTEGRATION_KEY: "evil", "REPLIERS-INTEGRATION-KEY": "evil" };
+  assert.ok(!("REPLIERS-INTEGRATION-KEY" in apiHeaders(args, { url: API_URL })));
+  process.env.REPLIERS_INTEGRATION_KEY = VALID;
+  assert.equal(apiHeaders(args, { url: API_URL })["REPLIERS-INTEGRATION-KEY"], VALID);
+});
+
+test("the integration key goes only to the configured API origin", () => {
+  enableIntegrationKey();
+  process.env.REPLIERS_INTEGRATION_KEY = VALID;
+  assert.equal(sent({ url: "https://api.repliers.io/listings/N1" }), VALID);
+  for (const url of ["https://dev.repliers.io/listings/N1", "https://api.repliers.io@evil.example/x", "http://api.repliers.io/x", "not a url"]) {
+    assert.equal(sent({ url }), undefined, url);
+  }
+  process.env.REPLIERS_API_BASE_URL = "https://dev.repliers.io";
+  assert.equal(sent({ url: "https://dev.repliers.io/listings/N1" }), VALID, "follows REPLIERS_API_BASE_URL");
+  assert.equal(sent({ url: "https://api.repliers.io/listings/N1" }), undefined);
+});
+
+// A destination-less call could hand the key anywhere: apiHeaders refuses rather than guess.
+test("apiHeaders requires a url", () => {
+  enableIntegrationKey();
+  process.env.REPLIERS_INTEGRATION_KEY = VALID;
+  for (const url of [undefined, null, ""]) {
+    assert.throws(() => apiHeaders({ _repliersApiKey: "k" }, { url }), /url is required/, String(url));
+  }
+  assert.throws(() => apiHeaders({ _repliersApiKey: "k" }), /url is required/);
+});
+
+// The API never redirects. fetch keeps custom headers across one, so following a 3xx would hand
+// both keys to whatever host Location names: apiFetch returns the 3xx as a failure instead.
+test("apiFetch never follows a redirect and hands the 3xx back as the response", async () => {
+  const realFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url, init) => {
+    calls.push({ url, init });
+    return new Response("", { status: 302, headers: { location: "https://evil.example/x" } });
+  };
+  try {
+    const response = await apiFetch(new URL("https://api.repliers.io/listings/N1"), { _repliersApiKey: "k" }, { method: "GET" });
+    assert.equal(response.status, 302);
+    assert.equal(calls.length, 1, "the Location host was never contacted");
+    assert.equal(calls[0].url, "https://api.repliers.io/listings/N1");
+    assert.equal(calls[0].init.redirect, "manual");
+    assert.equal(calls[0].init.method, "GET");
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("apiFetch builds the headers from args and forwards method, body, signal, json and accept", async () => {
+  const realFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url, init) => { calls.push({ url, init }); return new Response("{}", { status: 200 }); };
+  try {
+    const signal = AbortSignal.timeout(1000);
+    await apiFetch("https://api.repliers.io/listings", { _repliersApiKey: "k", _userAgent: "ua/1" },
+      { method: "POST", json: true, body: "{}", signal });
+    const { init } = calls[0];
+    assert.equal(init.method, "POST");
+    assert.equal(init.body, "{}");
+    assert.equal(init.signal, signal);
+    assert.equal(init.headers["REPLIERS-API-KEY"], "k");
+    assert.equal(init.headers["User-Agent"], "ua/1");
+    assert.equal(init.headers["Content-Type"], "application/json");
+    assert.equal(init.headers.Accept, "application/json");
+    assert.equal(init.json, undefined, "json is not a fetch option");
+    assert.equal(init.accept, undefined, "accept is not a fetch option");
+
+    await apiFetch("https://api.repliers.io/x", { _repliersApiKey: "k" }, { accept: "image/*" });
+    assert.equal(calls[1].init.headers.Accept, "image/*");
+    assert.equal(calls[1].init.headers["Content-Type"], undefined);
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test("apiFetch passes the url to the origin guard, so a foreign host never gets the integration key", async () => {
+  enableIntegrationKey();
+  process.env.REPLIERS_INTEGRATION_KEY = VALID;
+  const realFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url, init) => { calls.push({ url, init }); return new Response("{}", { status: 200 }); };
+  try {
+    await apiFetch("https://api.repliers.io/listings", { _repliersApiKey: "k" });
+    assert.equal(calls[0].init.headers["REPLIERS-INTEGRATION-KEY"], VALID);
+    await apiFetch("https://dev.repliers.io/listings", { _repliersApiKey: "k" });
+    assert.equal(calls[1].init.headers["REPLIERS-INTEGRATION-KEY"], undefined);
+  } finally {
+    global.fetch = realFetch;
+  }
 });
 
 test("readFailure keeps the status and parses JSON, text, or nothing", async () => {

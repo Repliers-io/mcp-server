@@ -36,7 +36,8 @@ Then scope to the change: `git status`, `git diff`, `git diff --staged`; if clea
 - Outbound URLs (PropelAuth introspection, Repliers, Trello): SSRF via caller-controlled host — the Repliers host must come only from `lib/apiBase.js`; the auth host only from config. Query params encoded, no injection into upstream requests.
 
 **Secret hygiene**
-- `REPLIERS_API_KEY`, `PROPELAUTH_API_KEY`, `PROPELAUTH_MCP_INTROSPECT_*`, `TRELLO_*`, and any access/bearer token MUST NOT appear in logs, error messages, `_feedback` payloads, tool responses, or stack traces. Check both success and error paths, and anything written to stdout/stderr.
+- The repo is public on GitHub with no export or filter step: every tracked file (code, tests, fixtures, `CLAUDE.md`, `.claude/`, commit messages) is published on push. A secret value, internal-only URL or customer data in any tracked file is a 🔴 Critical finding.
+- `REPLIERS_API_KEY`, `REPLIERS_INTEGRATION_KEY`, `PROPELAUTH_API_KEY`, `PROPELAUTH_MCP_INTROSPECT_*`, `TRELLO_*`, and any access/bearer token MUST NOT appear in logs, error messages, `_feedback` payloads, tool responses, or stack traces. Check both success and error paths, and anything written to stdout/stderr.
 - Secrets sourced from env/config only, never from request input. No secret baked into code or committed fixtures.
 - Timing-safe comparison for any secret/credential equality check.
 

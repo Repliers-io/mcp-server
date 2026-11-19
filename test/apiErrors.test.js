@@ -41,6 +41,12 @@ const cases = [
   ["HAR not enabled on the key", { toolName: "get-har-listing-views", url: "https://api.repliers.io/partners/har/listings/views",
     status: 403, body: [{ msg: "This API key is not configured for HAR integration." }] },
     { kind: "account", reason: "feature", capture: false, retry: false }],
+  // The API never redirects; apiFetch() hands a 3xx back unfollowed (lib/apiRequest.js).
+  ["redirect, not followed", { toolName: "get-listing", url: listing, status: 302, body: null },
+    { kind: "upstream", reason: "redirect", capture: true, retry: true }],
+  // 304 is a 3xx but not a redirect: fetch passes it through and it stays an ordinary request error.
+  ["304 Not Modified is not a redirect", { toolName: "get-listing", url: listing, status: 304, body: null },
+    { kind: "request", reason: "other", capture: false, retry: true }],
 ];
 
 for (const [name, input, want] of cases) {

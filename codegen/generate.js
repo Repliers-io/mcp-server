@@ -194,7 +194,7 @@ function generateToolFile(method, urlPath, operation, spec, override, docText) {
 // Source: ${method.toUpperCase()} ${urlPath} (operationId: ${operationId})
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
-import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
+import { apiFetch, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
@@ -203,9 +203,8 @@ ${urlLines}${bodyLines}
   const finalUrl = url.toString();
 
   try {
-    const response = await fetch(finalUrl, {
-      method: '${method.toUpperCase()}',
-      headers: apiHeaders(args${hasBody ? ', { json: true }' : ''})${fetchBody},
+    const response = await apiFetch(finalUrl, args, {
+      method: '${method.toUpperCase()}'${hasBody ? ',\n      json: true' : ''}${fetchBody},
     });
 
     if (!response.ok) {

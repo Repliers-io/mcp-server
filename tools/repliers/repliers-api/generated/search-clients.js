@@ -2,7 +2,7 @@
 // Source: GET /clients (operationId: search-clients)
 
 import { apiBaseUrl } from '../../../../lib/apiBase.js';
-import { apiHeaders, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
+import { apiFetch, readFailure, errorMessage } from '../../../../lib/apiRequest.js';
 
 const executeFunction = async (args) => {
   const baseUrl = apiBaseUrl();
@@ -28,9 +28,8 @@ const executeFunction = async (args) => {
   const finalUrl = url.toString();
 
   try {
-    const response = await fetch(finalUrl, {
+    const response = await apiFetch(finalUrl, args, {
       method: 'GET',
-      headers: apiHeaders(args),
     });
 
     if (!response.ok) {

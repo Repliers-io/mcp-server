@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node mcpServer.js",
     "start:http": "node mcpServer.js --http",
+    "start:http:local:integration": "nodemon --watch .env --watch mcpServer.js --watch index.js --watch lib --watch tools --watch commands -x node mcpServer.js --http --send-integration-key",
     "generate": "node codegen/generate.js",
     "sync-spec": "node scripts/sync-spec.mjs",
     "list-tools": "node index.js tools",
@@ -24,5 +25,8 @@
     "npm": ">=11.16.0"
   },
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "3.1.14"
+  }
 }

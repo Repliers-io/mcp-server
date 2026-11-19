@@ -1,10 +1,34 @@
-import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { apiFetch, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { apiBaseUrl } from "../../../../lib/apiBase.js";
+
+// The endpoint answers with the photo already wrapped as MCP content,
+// { content: [{ type: "image", data: <base64>, mimeType }] }, labelled application/json.
+// Raw image bytes (image/*) are accepted too, should the API ever serve them directly.
+async function readImage(response) {
+  const type = response.headers.get("content-type") || "";
+  if (type.startsWith("image/")) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    return { data: bytes.toString("base64"), mimeType: type.split(";")[0].trim() };
+  }
+  let body;
+  try {
+    body = JSON.parse(await response.text());
+  } catch {
+    return null;
+  }
+  const block = Array.isArray(body?.content)
+    ? body.content.find((item) => item?.type === "image" && typeof item.data === "string" && item.data)
+    : null;
+  if (!block) return null;
+  return { data: block.data, mimeType: typeof block.mimeType === "string" && block.mimeType ? block.mimeType : "image/jpeg" };
+}
+
 /**
  * Function to download a listing's photo from the Repliers API.
  *
- * Fetches the raw JPEG bytes directly (rather than returning a CDN URL), which
- * is useful when a URL to the image would be blocked by network restrictions
- * on the caller's side (or vice versa).
+ * Fetches the photo server-side (rather than returning a CDN URL), which is
+ * useful when a URL to the image would be blocked by network restrictions on
+ * the caller's side (or vice versa).
  *
  * @param {Object} args - Arguments for downloading a listing image.
  * @param {string} args.mlsNumber - The MLS number of the listing.
@@ -12,22 +36,18 @@ import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiReques
  * @returns {Promise<Object>} - The result containing base64 image data, or an error.
  */
 const executeFunction = async (args) => {
-  const baseUrl = "https://dev.repliers.io";
   const mlsNumber = args.mlsNumber;
   const imageNumber = args.imageNumber || 1;
   let finalUrl;
 
   try {
-    const headers = apiHeaders(args, { accept: null });
-
     const url = new URL(
-      `${baseUrl}/listings/${encodeURIComponent(mlsNumber)}/images/download/${encodeURIComponent(imageNumber)}`
+      `${apiBaseUrl()}/listings/${encodeURIComponent(mlsNumber)}/images/download/${encodeURIComponent(imageNumber)}`
     );
     finalUrl = url.toString();
-
-    const response = await fetch(finalUrl, {
+    const response = await apiFetch(finalUrl, args, {
       method: "GET",
-      headers,
+      accept: "application/json, image/*",
     });
 
     if (!response.ok) {
@@ -40,17 +60,20 @@ const executeFunction = async (args) => {
       };
     }
 
-    const mimeType = response.headers.get("content-type") || "image/jpeg";
-    const arrayBuffer = await response.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+    const image = await readImage(response);
+    if (!image) {
+      // A 200 without a usable image means there is no such photo (index past photoCount, listing
+      // without photos): a deterministic not-found, so the agent is not told to retry and no
+      // upstream incident is captured.
+      return {
+        url: finalUrl,
+        error: `The Repliers API returned no image data for image ${imageNumber} of listing ${mlsNumber}.`,
+        status: 404,
+        body: null,
+      };
+    }
 
-    return {
-      url: finalUrl,
-      image: {
-        data: base64Data,
-        mimeType,
-      },
-    };
+    return { url: finalUrl, image };
   } catch (error) {
     return { url: finalUrl, error: error.message, status: null, body: null };
   }

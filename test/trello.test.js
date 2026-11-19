@@ -4,6 +4,7 @@ import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { trelloConfigured, autoCaptureConfigured, autoCaptureMode, effectiveCaptureMode, createCard, addComment, dryRunLogPath } from "../lib/trello.js";
+import { enableIntegrationKey, integrationKey } from "../lib/apiRequest.js";
 
 const realFetch = global.fetch;
 const realEnv = {
@@ -13,6 +14,7 @@ const realEnv = {
   TRELLO_AUTO_LIST_ID: process.env.TRELLO_AUTO_LIST_ID,
   FEEDBACK_DRY_RUN: process.env.FEEDBACK_DRY_RUN,
   FEEDBACK_DRY_RUN_LOG: process.env.FEEDBACK_DRY_RUN_LOG,
+  REPLIERS_INTEGRATION_KEY: process.env.REPLIERS_INTEGRATION_KEY,
 };
 beforeEach(() => {
   process.env.TRELLO_API_KEY = "test-key";
@@ -23,6 +25,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   global.fetch = realFetch;
+  enableIntegrationKey(false);
   for (const [key, value] of Object.entries(realEnv)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -135,6 +138,26 @@ test("an unwritable log path never breaks the card result", async () => {
     assert.match(result.cardId, /^dry-run-\d+$/);
   } finally {
     console.error = realError;
+  }
+});
+
+// The integration key is for the Repliers API only; Trello requests are built without apiHeaders().
+test("Trello requests never carry the Repliers integration key", async () => {
+  process.env.REPLIERS_INTEGRATION_KEY = "INT-SECRET-trello-7f3a9c2e1b4d";
+  enableIntegrationKey();
+  assert.ok(integrationKey(), "the key must be live for this test to mean anything");
+  const calls = [];
+  global.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return { ok: true, json: async () => ({ id: "c-abc", shortUrl: "https://trello.com/c/abc" }) };
+  };
+  await createCard({ name: "card name", desc: "card body" });
+  await addComment("c-abc", "seen again");
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    const names = Object.keys(call.init.headers ?? {}).map((name) => name.toLowerCase());
+    assert.ok(!names.includes("repliers-integration-key"), JSON.stringify(names));
+    assert.doesNotMatch(JSON.stringify(call), /INT-SECRET/);
   }
 });
 

@@ -1,4 +1,4 @@
-import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { apiFetch, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { apiBaseUrl } from "../../../../lib/apiBase.js";
 import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
 import { LISTING_FIELDS, compactListings, slimRequest } from "../../../../lib/listingFields.js";
@@ -24,9 +24,9 @@ const executeFunction = async (args) => {
     finalUrl = url.toString(); // Capture the final URL
     
     // Perform the fetch request with body
-    const response = await fetch(finalUrl, {
+    const response = await apiFetch(finalUrl, args, {
       method: "POST",
-      headers: apiHeaders(args, { json: true }),
+      json: true,
       // /nlp honours `fields` in the body (not in the query); it ignores a page size, so the
       // response is always up to 100 listings and the fields are what keeps it readable.
       body: JSON.stringify({

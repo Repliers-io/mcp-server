@@ -1,4 +1,4 @@
-import { apiHeaders, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
+import { apiFetch, readFailure, errorMessage } from "../../../../lib/apiRequest.js";
 import { effectiveCaptureMode } from "../../../../lib/trello.js";
 import { apiBaseUrl, apiOrigin } from "../../../../lib/apiBase.js";
 import { parseAppliedFilters } from "../../../../lib/appliedFilters.js";
@@ -68,7 +68,7 @@ const executeFunction = async (args) => {
     // and the next refine read exactly what the model built, and a default is not a change.
     const fetchUrl = new URL(finalUrl);
     if (!fetchUrl.searchParams.has("fields")) fetchUrl.searchParams.set("fields", LISTING_FIELDS);
-    const response = await fetch(fetchUrl, { headers: apiHeaders(args) });
+    const response = await apiFetch(fetchUrl, args);
     if (!response.ok) {
       const { status, body } = await readFailure(response);
       return { url: finalUrl, error: errorMessage(body) || `HTTP ${status}`, status, body };
